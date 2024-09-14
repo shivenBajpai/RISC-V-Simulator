@@ -2,6 +2,7 @@
 #define MEMORY_H
 
 #include <stdint.h>
+#include <stdio.h>
 
 typedef struct Memory Memory;
 
@@ -15,5 +16,5 @@ void memory_put_many(Memory* memory, uint8_t *bytes, uint64_t len, uint64_t addr
 
 uint8_t memory_get(Memory* memory, uint64_t addr);
 
-int core_dump(FILE* text, FILE* data, FILE* stack);
+int memory_core_dump(Memory* memory, FILE* text, FILE* data, FILE* stack);
 #endif

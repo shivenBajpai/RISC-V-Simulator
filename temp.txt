@@ -1,0 +1,8 @@
+todos:
+
+Memory safety
+Memory optimization
+Stack show
+Memory show
+Labels in the code view
+Auto Scroll

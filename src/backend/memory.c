@@ -1,8 +1,9 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 #include "memory.h"
-#include "globals.h"
+#include "../globals.h"
 
 // An abstraction over the memory that imitates a large array externally but optimizes memory utilization internally
 // Makes the assumptions that text segment starts at 0x0 and also that layout is always <text> <data> <heap> <stack>
@@ -176,7 +177,7 @@ uint8_t memory_get(Memory* memory, uint64_t addr) {
     return 0;
 }
 
-int core_dump(Memory* memory, FILE* text, FILE* data, FILE* stack) {
+int memory_core_dump(Memory* memory, FILE* text, FILE* data, FILE* stack) {
     
     if (fwrite(memory->text, sizeof(uint8_t), memory->text_end + 1, text) != memory->text_end+1) printf("Textfile dump failed\n");
     if (fwrite(memory->data, sizeof(uint8_t), memory->data_end - memory->data_addr+1, text) != memory->data_end-memory->data_addr+1) printf("data file dump failed\n");

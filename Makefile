@@ -1,7 +1,7 @@
 SHELL=/bin/bash
 CC = gcc
-CCFLAGS = -g
-CLFLAGS = 
+CCFLAGS = -g -lncurses
+CLFLAGS = -g -lncurses
 
 SRCDIR=src
 OBJDIR=build
@@ -11,10 +11,13 @@ TARGET=riscv_sim
 
 # DO NOT EDIT BELOW
 
-SRCS=$(wildcard ./$(SRCDIR)/*.c)
+SRCS=$(wildcard ./$(SRCDIR)/*.c) $(wildcard ./$(SRCDIR)/*/*.c)
 OBJ_NAMES=$(patsubst %.c,%.o,$(SRCS))
 OBJS=$(patsubst ./$(SRCDIR)%,./$(OBJDIR)%,$(OBJ_NAMES))
 TARGET_PATH=./$(OUTDIR)/$(TARGET)
+
+.PHONY: build
+build: $(TARGET_PATH)
 
 run: $(TARGET_PATH)
 	@cd bin && ./$(TARGET)
@@ -25,12 +28,9 @@ debug: $(TARGET_PATH)
 test: $(TARGET_PATH)
 	@cd tests && ./test.bash
 
-.PHONY: build
-build: $(TARGET_PATH)
-
 $(TARGET_PATH): $(OBJS)
 	@echo "Linking..."
-	@$(CC) $(CLFLAGS) -o $(TARGET_PATH) $(OBJS)
+	@$(CC) -o $(TARGET_PATH) $(OBJS) $(CLFLAGS) 
 	@echo "Binary generated in /bin"
 
 ./build/%.o: ./$(SRCDIR)/%.c
@@ -44,6 +44,6 @@ report:
 .PHONY: clean
 clean:
 	@echo "Removing Build and Test files..."
-	-@rm ./$(OBJDIR)/*.o
+	-@rm $(OBJS)
 	-@rm ./$(OUTDIR)/$(TARGET)
 	-@rm ./$(TEST_TEMPDIR)/*
