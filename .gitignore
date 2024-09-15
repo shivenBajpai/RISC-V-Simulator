@@ -3,3 +3,4 @@
 *.o
 /.vscode/
 /tests/outputs/
+/.VSCodeCounter/

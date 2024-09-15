@@ -3,6 +3,6 @@
 #include <stdio.h>
 #include "index.h"
 
-int* assembler_main(FILE *in_fp, char *clean_fp, label_index* index);
+int* assembler_main(FILE *in_fp, char *clean_fp, label_index* index, uint8_t* memory);
 
 #endif

@@ -9,6 +9,7 @@
 #include "frontend/frontend.h"
 #include "assembler/vec.h"
 #include "assembler/assembler.h"
+#include "backend/stacktrace.h"
 
 void exit_handler() {
 
@@ -26,7 +27,7 @@ void exit_handler() {
 		if (!text_file || !data_file || !stack_file) {
 			printf("Failed to Core dump, couldn't write to files!\n");
 		} else {
-			//core_dump(memory, text_file, data_file, stack_file);
+			//core_dump(memory, text_file, data_file, stack_file); // TODO: Core dumps!
 			core_dump(text_file);
 		}
 
@@ -35,33 +36,6 @@ void exit_handler() {
 		fclose(stack_file);
 	}
 }
-
-// char** split_command(char* command) {
-// 	char* args[8] = {NULL};
-// 	int i=0;
-// 	int j=0;
-
-// 	do {
-// 		if (command == " ") {
-// 			args[i][j] = '\0';
-// 			i++;
-// 			j=0;
-
-// 			if (i == 8) {
-// 				//ERROR: TOO MANY
-// 			}
-
-// 			args[i] = malloc(sizeof(char) * 128);
-// 		}
-
-// 		args[i][j++] = *command;
-// 		if (j==127) {
-// 			// ERROR: Too long
-// 		}
-// 	} while (command++ != '\0');
-
-// 	return args;	
-// }
 
 int main(int* argc, char** argv) {
 	
@@ -80,10 +54,13 @@ int main(int* argc, char** argv) {
 	init_frontend();
 	set_frontend_register_pointer(get_register_pointer());
 	set_frontend_pc_pointer(get_pc_pointer());
-	set_frontend_memory_pointer(get_memory_pointer());
+	set_frontend_memory_pointer(get_memory_pointer(), MEMORY_SIZE);
 	set_breakpoints_pointer(get_breakpoints_pointer());
 
 	vec* breakpoints = new_managed_array();
+	stacktrace* stack;
+	label_index* index;
+	uint32_t* hexcode;
 	Command command = NONE;
 	char* cleaned_code = NULL;
 
@@ -101,28 +78,36 @@ int main(int* argc, char** argv) {
 				fseek(fp, 0L, SEEK_END);
 				long len = ftell(fp);
 				fseek(fp, 0L, SEEK_SET);
-				//printf("TryBuf size: %zu\n", sizeof(char) * len);
 
 				if (cleaned_code) free(cleaned_code);
 				cleaned_code = malloc(sizeof(char) * len);
 				if (!cleaned_code) {
 					show_error("Out Of Memory!");
 					break;
-				} else {
-					//show_error("Buf size: %zu", sizeof(char) * len);
 				}
-				label_index* index;
+				
+				if (index) free(index);
+				index = new_label_index();
+				uint8_t *temp_mem = malloc(sizeof(uint8_t)* MEMORY_SIZE);
+				memset(temp_mem, 0, sizeof(temp_mem));
 
-				uint32_t* hexcode = assembler_main(fp, cleaned_code, index); // Need to add Data segment capabiltiy, and also need to add Breakpoint parsing
+				hexcode = assembler_main(fp, cleaned_code, index, temp_mem); // Need to add Data segment capabiltiy, and also need to add Breakpoint parsing
+				fclose(fp);
 				if (!hexcode) {
-					//show_error("Invalid State!");
 					break;
 				}
-				fclose(fp);
+
+				if (get_section_label(index, 0) == -1) add_label(index, "main", 0);
+				if (stack) free(stack);
+				stack = new_stacktrace(index);
+				st_push(stack, 0);
 
 				reset_backend();
 				memcpy(get_memory_pointer(), &hexcode[1], hexcode[0]*4); // hexcode[0] is implicitly the length in words. actual hexcode starts from hexcode[1]
-				
+				memcpy(get_memory_pointer()+DATA_BASE, temp_mem+DATA_BASE, MEMORY_SIZE-DATA_BASE);
+				free(temp_mem);
+
+				set_stack_pointer(stack);
 				set_labels_pointer(index);
 				update_code(cleaned_code, hexcode[0]); //  Need to update breakpoints as per ebreak instructions
 				set_hexcode_pointer((uint32_t*) &hexcode[1]);
@@ -131,6 +116,19 @@ int main(int* argc, char** argv) {
 			case RUN:
 				int result = run(&frontend_update);
 				release_run_lock();
+				if (result == 0) show_error("Execution stopped at breakpoint!");
+				break;
+
+			case RESET:
+				if (stack) free(stack);
+				stack = new_stacktrace(index);
+				st_push(stack, 0);
+
+				reset_backend();
+
+				set_stack_pointer(stack);
+				memcpy(get_memory_pointer(), &hexcode[1], hexcode[0]*4);
+				set_hexcode_pointer((uint32_t*) &hexcode[1]);
 				break;
 
 			case EXIT:
@@ -146,7 +144,12 @@ int main(int* argc, char** argv) {
 	}
 
 	exit:
+	if (hexcode) free(hexcode);
+	if (stack) free(stack);
+	if (index) free(index);
+	if (cleaned_code) free(cleaned_code);
 	destroy_frontend();
+	// FREE BACKEND MEMORY
 	free_managed_array(breakpoints);
 	return 0;
 }

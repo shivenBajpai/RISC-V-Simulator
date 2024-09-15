@@ -5,12 +5,198 @@
 #include "index.h"
 #include "translator.h"
 #include "../frontend/frontend.h"
+#include "../backend/backend.h"
+
+int read_greedy(FILE** in_fp, char* buffer, size_t n) {
+	FILE* fp = *in_fp;
+	int i = 0;
+	char c;
+
+	while((c = fgetc(fp)) != ' ' && c != '\t' && c != '\n' && c != ',' && c != EOF) {
+		if (i==n-1) return 1;
+		buffer[i] = c;
+		i++;
+	}
+
+	buffer[i] = '\0';
+	fseek(fp, -1, SEEK_CUR);
+	return 0;
+}
+
+long int parse_imm(char* arg, char** endptr) {
+	long int ret;
+
+	if (arg[0] == '0') {
+		if (arg[1] == 'x') {
+			ret = strtol(arg+2, endptr, 16);
+		} else if (arg[1] == 'b') {
+			ret = strtol(arg+2, endptr, 2);
+		} else {
+			ret = strtol(arg+1, endptr, 8);
+		}
+	} else {
+		ret = strtol(arg, endptr, 10);
+	}
+
+	return ret;
+}
+
+int pre_pass(FILE **in_fp, uint8_t* memory) {
+	FILE* fp = *in_fp;
+	char c;
+	char buffer[80];
+	char *endptr;
+	int i=0;
+	int line_offset = 1;
+	int mem_pointer = DATA_BASE;
+	long imm = 0;
+	bool data_flag = false;
+	bool comment_flag = false; // Are we reading a comment
+	bool command_flag = false;
+
+	while(1) {
+		c = fgetc(fp);
+		switch (c) {
+			case '#':
+			case ';':
+				//printf("C1\n");
+				comment_flag = true;
+				if (command_flag) {
+					show_error("Unexpected comment on line %d", line_offset);
+					return -1;
+				}
+				break;
+
+			case EOF:
+				//printf("C2\n");
+				show_error("Unexpected End of file!");
+				return -1;
+
+			case '\n':
+				//printf("C3\n");
+				line_offset++;
+				comment_flag = false;
+			case ' ':
+			case '\t':
+				//printf("C4 >%s<\n", buffer);
+				if (command_flag) {
+					buffer[i] = '\0';
+					if (!strcmp(buffer, "data")) {
+						data_flag = true;
+
+					} else if (!strcmp(buffer, "text")) {
+						fseek(fp, -1, SEEK_CUR);
+						return line_offset-1;
+
+					} else if (!strcmp(buffer, "dword")) {
+						if (read_greedy(&fp, buffer, 80)) {
+							show_error("Value too large on line %d", line_offset);
+							return -1;
+						}
+
+						imm = parse_imm(buffer, &endptr);
+						if (*endptr != '\0') {
+							show_error("Failed to parse value on line %d", line_offset);
+							return -1;
+						}
+
+						memcpy(&memory[mem_pointer], &imm, 8);
+						mem_pointer += 8;
+
+					} else if (!strcmp(buffer, "word")) {
+						if (read_greedy(&fp, buffer, 80)) {
+							show_error("Value too large on line %d", line_offset);
+							return -1;
+						}
+
+						imm = parse_imm(buffer, &endptr);
+						if (*endptr != '\0') {
+							show_error("Failed to parse value on line %d", line_offset);
+							return -1;
+						}
+						
+						memcpy(&memory[mem_pointer], &imm, 4);
+						mem_pointer += 4;
+
+					} else if (!strcmp(buffer, "half")) {
+						if (read_greedy(&fp, buffer, 80)) {
+							show_error("Value too large on line %d", line_offset);
+							return -1;
+						}
+
+						imm = parse_imm(buffer, &endptr);
+						if (*endptr != '\0') {
+							show_error("Failed to parse value on line %d", line_offset);
+							return -1;
+						}
+						
+						memcpy(&memory[mem_pointer], &imm, 2);
+						mem_pointer += 2;
+					
+					} else if (!strcmp(buffer, "byte")) {
+						if (read_greedy(&fp, buffer, 80)) {
+							show_error("Value too large on line %d", line_offset);
+							return -1;
+						}
+
+						imm = parse_imm(buffer, &endptr);
+						if (*endptr != '\0') {
+							show_error("Failed to parse value on line %d", line_offset);
+							return -1;
+						}
+						
+						memcpy(&memory[mem_pointer], &imm, 1);
+						mem_pointer += 1;
+
+					} else {
+						show_error("Unknown statement on line %d", line_offset);
+						return -1;
+					}
+					command_flag = false;
+				}
+
+				break;
+
+			case '.':
+				//printf("DOT\n");
+				if (comment_flag) break;
+
+				if (command_flag) {
+					show_error("Unexpected . on line %d", line_offset);
+					return -1;
+				}
+				command_flag = true;
+				i=0;
+				break;
+
+			default:
+				//printf("C5 %d\n", command_flag);
+				if (comment_flag) break;
+				if (!command_flag) {
+					//printf("X2\n\n");
+					fseek(fp, -1, SEEK_CUR);
+					return line_offset-1;
+				}
+
+				//printf("X1\n\n");
+				buffer[i] = c;
+				i++;
+				if (i==79) {
+					show_error("Unknown statement on line %d", line_offset);
+					return -1;
+				}
+				break;
+		}
+	}
+
+	//printf("X3\n");
+}
 
 // Reads in_fp and writes the same to out_fp while ignoring all whitespace, comments and labels (but makes a note of label positions)
-int first_pass(FILE *in_fp, char *out_fp, label_index* index, vec* line_mapping) {
+int first_pass(FILE *in_fp, char *out_fp, label_index* index, vec* line_mapping, int line_offset) {
 	char c;
 	char label_buffer[128];
-	int linecount = 1;
+	int linecount = line_offset;
 	int instruction_count = 0;
 	int line_len = 0;
 	bool comment_flag = false; // Are we reading a comment
@@ -184,20 +370,23 @@ int second_pass(char* clean_fp, int* hexcode, label_index* index, vec* line_mapp
 	return 0;
 }
 
-int* assembler_main(FILE* in_fp, char* clean_fp, label_index* index) {
+int* assembler_main(FILE* in_fp, char* clean_fp, label_index* index, uint8_t* memory) {
 
 	// Initializing and Parsing command line switches
-
 	bool debug = false;
 	bool binary = true;
 
 	vec *line_mapping;
 	int result;
-	index = new_label_index();
 	line_mapping = new_managed_array();
 
+	// Perform the pre-processing
+	if ((result = pre_pass(&in_fp, memory)) == -1) {
+		return NULL;
+	}
+
 	// Perform the first pass
-	if ((result = first_pass(in_fp, clean_fp, index, line_mapping)) != 0) {
+	if ((result = first_pass(in_fp, clean_fp, index, line_mapping, result)) != 0) {
 		return NULL;
 	}
 
@@ -209,7 +398,6 @@ int* assembler_main(FILE* in_fp, char* clean_fp, label_index* index) {
 		return NULL;
 	}
 
-	free_label_index(index);
 	free_managed_array(line_mapping);
 	return hexcode;
 }

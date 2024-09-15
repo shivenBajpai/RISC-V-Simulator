@@ -2,11 +2,19 @@
 #define INDEX_H
 #include <stdlib.h>
 
-typedef struct label_index label_index;
+typedef struct label_index {
+	size_t len;
+	size_t capacity;
+	char** labels;
+	int* positions;
+} label_index;
+
 
 int add_label(label_index* index, char* label, int position);
 
 int label_to_position(label_index* index, char* label);
+
+int get_section_label(label_index* index, int line);
 
 label_index* new_label_index();
 

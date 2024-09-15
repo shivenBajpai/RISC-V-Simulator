@@ -2,13 +2,13 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <sys/timeb.h>
+# include <bits/types/struct_timeb.h>
 #include <string.h>
 #include "../globals.h"
 #include "../assembler/vec.h"
 #include "../frontend/frontend.h"
-
-#define DATA_BASE 0x10000
-#define MEMORY_SIZE 0x50000 + 1 // Also used as end from which stack grows downward
+#include "backend.h"
 
 enum Opcode {
     R_Type      = 0b0110011,
@@ -16,8 +16,8 @@ enum Opcode {
     Load_Type   = 0b0000011,
     S_Type      = 0b0100011,
     B_Type      = 0b1100011,
-    // JAL         = 0b1101111,
-    // JALR        = 0b1100111,
+    JAL         = 0b1101111,
+    JALR        = 0b1100111,
     // LUI         = 0b0110111,
     // AUIPC       = 0b0010111,
     EBREAK      = 0b1110011,
@@ -72,6 +72,7 @@ enum Instruction_Constants{
 static uint64_t registers[32] = {0};
 static uint64_t pc = 0;
 static vec *breakpoints;
+static stacktrace *stack;
 static uint8_t memory[MEMORY_SIZE] = {0};
 //Memory *memory;
 
@@ -94,9 +95,10 @@ uint64_t* get_register_pointer() {return &registers[0];}
 uint64_t* get_pc_pointer() {return &pc;}
 vec* get_breakpoints_pointer() {return breakpoints;}
 uint8_t* get_memory_pointer() {return &memory[0];}
+void set_stacktrace_pointer(stacktrace* stacktrace) {stack = stacktrace;}
 
 void reset_backend() {
-    memset(memory, 0, sizeof(uint64_t) * 32);
+    memset(registers, 0, sizeof(registers));
     memset(memory, 0, sizeof(memory));
     if (breakpoints) free(breakpoints);
     breakpoints = new_managed_array();
@@ -109,6 +111,13 @@ int step() {
         segfault_flag = true;
         cause = "Program counter ran into data segment";
         exit(1);
+    }
+
+    for (int i=0; i<breakpoints->len; i++) {
+        if (pc/4==breakpoints->values[i]) {
+            pc += 4;
+            return 1;
+        }
     }
 
     uint32_t instruction = (memory[pc+3] << 24) | (memory[pc+2] << 16) | (memory[pc+1] << 8) |  memory[pc];
@@ -128,13 +137,13 @@ int step() {
         case I_Type:
         case Load_Type:
             imm = (instruction & 0xFFF00000) >> 20;
-            imm |= (imm & 0x1000)?0xFFFFFFFFFFFFF000:0; // Sign Bit extension
+            imm |= (imm & 0x800)?0xFFFFFFFFFFFFF000:0; // Sign Bit extension
             funct_op = instruction & 0x0000707F;
             break;
 
         case S_Type:
             imm = (instruction & 0xFE000000) >> 20 + (instruction & 0x00000F80) >> 7;
-            imm |= (imm & 0x1000)?0xFFFFFFFFFFFFF000:0; // Sign Bit extension
+            imm |= (imm & 0x800)?0xFFFFFFFFFFFFF000:0; // Sign Bit extension
             funct_op = instruction & 0x0000707F;
             break;
 
@@ -149,6 +158,13 @@ int step() {
             pc += 4;
             return 1;
         
+        case JAL:
+        case JALR:
+            imm = (((instruction & 0x000FF000)) + ((instruction & 0x00100000) >> 9) + ((instruction & 0x80000000) >> 11) + ((instruction & 0x7FE00000) >> 20));
+            imm |= (imm & 0x100000)?0xFFFFFFFFFFF00000:0; // Sign Bit extension
+            funct_op = instruction & 0x0000007F;
+            break;
+
         case NOP:
             return 1;
 
@@ -307,13 +323,18 @@ int step() {
             break;
 
         case jal:
+            // printf("JAL: %lu %lu %lu\n", *rd, pc, imm);
+            // st_push(stack, 1 + pc/4);
             *rd = pc + 4;
+            // printf("JAL: %lu %lu %lu\n", *rd, pc, imm);
             pc += imm - 4;
+            // printf("JAL: %lu %lu %lu\n", *rd, pc, imm);
             break;
 
         case jalr:
             *rd = pc + 4;
             pc += *rs1 + imm - 4;
+            //st_pop(stack);
             break;
 
         case lui:
@@ -339,7 +360,16 @@ int step() {
 // Returns 1 if end of program is reached
 // Returns 0 if breakpoint is reached
 int run(Command (*callback)(void)) {
+    static time_t next_tick = 0;
+    static struct timeb time;
+
     while (memory[pc] != ebreak && pc < DATA_BASE) {
+        do{
+            if ((*callback)() == STOP) return 2;
+            ftime(&time);
+        } while (time.time*1000 + time.millitm < next_tick);
+        next_tick = time.time*1000 + time.millitm + 250;
+
         if (step()) return (pc >= DATA_BASE);
         if ((*callback)() == STOP) return 2;
     }

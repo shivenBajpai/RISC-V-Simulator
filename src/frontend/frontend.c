@@ -1,11 +1,12 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ncurses.h>
 #include "../assembler/index.h"
 #include "../assembler/vec.h"
 #include "frontend.h"
 #include "../globals.h"
-#include <ncurses.h>
+#include "../backend/stacktrace.h"
 
 #define C_NORMAL 0
 #define C_OFF_NORMAL 1
@@ -19,28 +20,34 @@ int rows, columns;
 int cursor=0;
 int input;
 int code_scroll;
+int memory_scroll=0;
 int lines_of_code=0;
 char* last_command;
 char* input_buffer;
 size_t input_buffer_len;
 bool initialized = false;
 bool showing_error = false;
+bool showing_mem = false;
 bool color_mode = false;
 bool run_lock = false;
+static MEVENT mouse;
 
+uint64_t memory_size;
 uint64_t* regs;
 uint64_t* pc;
 uint8_t* memory;
 char** code=NULL;
 uint32_t* hexcode=NULL;
 vec* breakpoints;
-label_index* labels;
+label_index* labels = NULL;
+stacktrace* stack = NULL;
 
 void set_frontend_register_pointer(uint64_t* regs_pointer) {regs = regs_pointer;}
 void set_frontend_pc_pointer(uint64_t* pc_pointer) {pc = pc_pointer;}
-void set_frontend_memory_pointer(uint8_t* memory_pointer) {memory = memory_pointer;}
+void set_frontend_memory_pointer(uint8_t* memory_pointer, uint64_t size_of_memory) {memory = memory_pointer; memory_size = size_of_memory;}
 void set_breakpoints_pointer(vec* breakpoints_pointer) {breakpoints = breakpoints_pointer;}
-void set_labels_pointer(label_index* index) {free(labels); labels = index;}
+void set_labels_pointer(label_index* index) {labels = index;}
+void set_stack_pointer(stacktrace* stacktrace) {stack = stacktrace;}
 void set_hexcode_pointer(uint32_t* hexcode_pointer) {hexcode = hexcode_pointer;}
 void set_run_lock() {run_lock = true;}
 void release_run_lock() {
@@ -150,9 +157,11 @@ void write_code(int x, int y, int h, int w) {
         if (line) free(line);
     }
 
-        for (int i=0; i<breakpoints->len; i++) {
-            mvaddch(y+2+breakpoints->values[i], x+3, '>'); // ADd scrolling
-        }
+    int pos;
+    for (int i=0; i<breakpoints->len; i++) {
+        pos = breakpoints->values[i]-code_scroll;
+        if (pos>=0 && pos<n_lines) mvaddch(y+2+pos, x+3, '>'); // ADd scrolling
+    }
 }
 
 int init_frontend() {
@@ -160,8 +169,10 @@ int init_frontend() {
     initscr();
     raw();
     keypad(stdscr, TRUE);
-    halfdelay(2);
+    halfdelay(1);
     noecho();
+    mousemask(ALL_MOUSE_EVENTS, NULL);
+    mouse.x = 0;
 
     if (has_colors()) {
         color_mode = true;
@@ -187,29 +198,76 @@ int init_frontend() {
     return 0;
 }
 
+void write_memory(int x, int y, int w, int h) {
+    int padding = w-6-3-11;
+
+    if (padding<2) return;
+
+    int last_line = memory_scroll+(h-5);
+    int offset=0;
+    bool color_toggle = false;
+    if (last_line > memory_size) last_line = memory_size;
+
+    for (int i=memory_scroll; i<=last_line; i++) {
+
+        if (color_toggle) {
+            attron(COLOR_PAIR(C_OFF_NORMAL));
+        } else {
+            attroff(COLOR_PAIR(C_OFF_NORMAL));
+        }
+
+        color_toggle = !color_toggle;
+
+        mvprintw(y+2+offset, x+2+padding/4, "0x%08X %*s 0x%02x", i, padding/2, "", memory[i]);
+        offset++;
+    }
+
+    attroff(COLOR_PAIR(C_OFF_NORMAL));
+}
+
+void write_stack(int x, int y, int w, int h) {
+    
+    if (!stack) return;
+    char* line = malloc(sizeof(char)*w);
+
+    for (int i=0; i<stack->len; i++) {
+        if (stack->label_indices->values[i] < 0) continue;
+        snprintf(line, w-4, "(%s:%ld)", labels->labels[stack->label_indices->values[i]], stack->stack->values[i]);
+        //printf("1\n\n");
+        write_centered(x, y+2+i, w, line);
+    }
+
+    free(line);
+
+}
+
 void draw() {
     getmaxyx(stdscr, rows, columns);
 
     int input_root_x = 0, input_root_y = rows-4, input_h=4, input_w=columns;
     int register_root_x = 0.75*columns, register_root_y = 0, register_w=columns-register_root_x, register_h=input_root_y+1;
-    int stack_root_x = 0.5*columns, stack_root_y = 0, stack_w=register_root_x-stack_root_x+1, stack_h=input_root_y+1;
-    int code_root_x = 0, code_root_y = 0, code_w=stack_root_x+1, code_h=input_root_y+1;
+    int aux_root_x = 0.5*columns, aux_root_y = 0, aux_w=register_root_x-aux_root_x+1, aux_h=input_root_y+1;
+    int code_root_x = 0, code_root_y = 0, code_w=aux_root_x+1, code_h=input_root_y+1;
     
     erase();
     draw_outline_rect(0,0,rows,columns);
     draw_outline_rect(input_root_x, input_root_y, input_h, input_w);
     draw_outline_rect(register_root_x, register_root_y, register_h, register_w);
-    draw_outline_rect(stack_root_x, stack_root_y, stack_h, stack_w);
+    draw_outline_rect(aux_root_x, aux_root_y, aux_h, aux_w);
     draw_outline_rect(code_root_x, code_root_y, code_h, code_w);
 
     write_centered(register_root_x, register_root_y, register_w, "REGISTERS");
-    write_centered(stack_root_x, stack_root_y, stack_w, "STACK");
+    write_centered(aux_root_x, aux_root_y, aux_w, showing_mem?"MEMORY":"STACK");
     write_centered(code_root_x, code_root_y, code_w, "CODE");
 
-    mvprintw(0,0,"PC is: %lu %d %d", *pc, code_scroll, lines_of_code);
+    mvprintw(0,0,"PC is: %lu %d", *pc, mouse.x);
     write_regs(register_root_x, register_root_y, register_h, register_w);
+    if (showing_mem) write_memory(aux_root_x, aux_root_y, aux_w, aux_h);
+    else write_stack(aux_root_x, aux_root_y, aux_w, aux_h);
     write_code(code_root_x, code_root_y, code_h, code_w);
 
+    mvprintw(input_root_y+2, input_root_x+input_w-15, "PC=0x%08lX", *pc);
+    
     if (showing_error) attron(COLOR_PAIR(C_ERROR));
     else attron(COLOR_PAIR(C_TERMINAL));
 
@@ -219,12 +277,6 @@ void draw() {
     else attroff(COLOR_PAIR(C_TERMINAL));
 
     refresh();
-}
-
-void parse_intruction() {
-    input_buffer[0] = '$';
-    input_buffer[1] = '\0';
-    input_buffer_len = 1;
 }
 
 void destroy_frontend() {
@@ -250,6 +302,22 @@ Command frontend_update() {
     draw();
     input = getch();
 
+    if (input == KEY_MOUSE) {
+        getmouse(&mouse);
+
+        if (mouse.bstate == BUTTON4_PRESSED) {
+            if (mouse.x<columns/2) code_scroll = code_scroll==0?code_scroll:code_scroll-1;
+            else if (mouse.x<3*columns/4) memory_scroll = memory_scroll==0?memory_scroll:memory_scroll-1;
+        }
+
+        if (mouse.bstate == BUTTON5_PRESSED) {
+            if (mouse.x<columns/2) code_scroll = code_scroll<=(lines_of_code-5)?code_scroll+1:code_scroll;
+            else if (mouse.x<3*columns/4) memory_scroll = memory_scroll<=(memory_size-5)?memory_scroll+1:memory_scroll;
+        }
+
+        return NONE;
+    }
+
     if (input == ERR) {
         return NONE;
     }
@@ -263,14 +331,16 @@ Command frontend_update() {
     }
 
     if (input == KEY_UP) {
-        code_scroll = code_scroll==0?code_scroll:code_scroll-1;
+        if (mouse.x<columns/2) code_scroll = code_scroll==0?code_scroll:code_scroll-1;
+        else if (mouse.x<3*columns/4) memory_scroll = memory_scroll==0?memory_scroll:memory_scroll-1;
     }
 
     if (input == KEY_DOWN) {
-        code_scroll = code_scroll<=(lines_of_code-10)?code_scroll+1:code_scroll;
+        if (mouse.x<columns/2) code_scroll = code_scroll<=(lines_of_code-5)?code_scroll+1:code_scroll;
+        else if (mouse.x<3*columns/4) memory_scroll = memory_scroll<=(memory_size-5)?memory_scroll+1:memory_scroll;
     }
 
-    if (run_lock) return input=='q'?STOP:NONE;
+    if (run_lock) {return input=='q'?STOP:NONE;}
 
     if (input == KEY_F(8)) {
         return STEP;
@@ -313,6 +383,7 @@ Command frontend_update() {
         if (!strncmp("$load ", last_command, 6)) {
             strcpy(input_file, last_command+6);
             return LOAD;
+
         } else if (!strncmp("$break ", last_command, 7)) {
             char* end_ptr = NULL;
             unsigned long break_line = strtol(last_command+7, &end_ptr, 10);
@@ -336,7 +407,35 @@ Command frontend_update() {
 
             append(breakpoints, break_line);
 
-            return NONE;
+        } else if (!strncmp("$mem", last_command, 4)) {
+
+            if (strlen(last_command) == 4) {
+                showing_mem = true;
+                return NONE;
+            }
+
+            char* end_ptr = NULL;
+            uint64_t new_addr, count;
+
+            if (last_command[5] == '0' && last_command[6] == 'b') {
+                new_addr = strtoul(last_command+7, &end_ptr, 2);
+            }
+            else {
+                new_addr = strtoul(last_command+5, &end_ptr, 0);
+            }
+
+            if (*end_ptr != ' ' && *end_ptr != '\0') {
+                show_error("Invalid Memory Address!");
+                return NONE;
+            }
+
+            if (new_addr >= memory_size) {
+                show_error("Memory Address out of bounds!");
+                return NONE;
+            }
+            
+            memory_scroll = new_addr;
+            showing_mem = true;
 
         } else if (last_command_len == 4 && !strcmp("$run", last_command)) {
             set_run_lock();
@@ -345,6 +444,13 @@ Command frontend_update() {
 
         } else if (last_command_len == 5 && !strcmp("$step", last_command)) {
             return STEP;
+
+        } else if (last_command_len == 6 && !strcmp("$reset", last_command)) {
+            return RESET;
+
+        } else if (last_command_len == 11 && !strcmp("$show-stack", last_command)) {
+            if (!showing_mem) show_error("Stack Trace is already shown on the right!");
+            showing_mem = false;
 
         } else if (last_command_len == 5 && !strcmp("$regs", last_command)) {
             show_error("Registers are already shown on the right pane!");
@@ -356,7 +462,7 @@ Command frontend_update() {
             show_error("Invalid command");
         }
 
-    } else if (input>31 && input<127 && input_buffer_len<columns-3) {
+    } else if (input>31 && input<127 && input_buffer_len<columns-16) {
 
         input_buffer[input_buffer_len] = input;
         input_buffer[input_buffer_len+1] = '\0';
