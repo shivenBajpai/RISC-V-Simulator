@@ -20,7 +20,7 @@ int rows, columns;
 int cursor=0;
 int input;
 int code_scroll;
-int memory_scroll=0;
+int aux_scroll=0;
 int lines_of_code=0;
 char* last_command;
 char* input_buffer;
@@ -203,12 +203,12 @@ void write_memory(int x, int y, int w, int h) {
 
     if (padding<2) return;
 
-    int last_line = memory_scroll+(h-5);
+    int last_line = aux_scroll+(h-5);
     int offset=0;
     bool color_toggle = false;
-    if (last_line > memory_size) last_line = memory_size;
+    if (last_line > memory_size-1) last_line = memory_size-1;
 
-    for (int i=memory_scroll; i<=last_line; i++) {
+    for (int i=aux_scroll; i<=last_line; i++) {
 
         if (color_toggle) {
             attron(COLOR_PAIR(C_OFF_NORMAL));
@@ -228,13 +228,23 @@ void write_memory(int x, int y, int w, int h) {
 void write_stack(int x, int y, int w, int h) {
     
     if (!stack) return;
+
+    if (stack->len == 0) {
+        write_centered(x, y+2, w, "Empty Call Stack: Execution complete");
+        return;
+    }
+
     char* line = malloc(sizeof(char)*w);
 
-    for (int i=0; i<stack->len; i++) {
+    int last_line = aux_scroll+(h-5);
+    int offset = 0;
+    if (last_line > stack->len) last_line = stack->len;
+
+    for (int i=aux_scroll; i<last_line; i++) {
         if (stack->label_indices->values[i] < 0) continue;
         snprintf(line, w-4, "(%s:%ld)", labels->labels[stack->label_indices->values[i]], stack->stack->values[i]);
-        //printf("1\n\n");
-        write_centered(x, y+2+i, w, line);
+        write_centered(x, y+2+offset, w, line);
+        offset++;
     }
 
     free(line);
@@ -260,13 +270,13 @@ void draw() {
     write_centered(aux_root_x, aux_root_y, aux_w, showing_mem?"MEMORY":"STACK");
     write_centered(code_root_x, code_root_y, code_w, "CODE");
 
-    mvprintw(0,0,"PC is: %lu %d", *pc, mouse.x);
+    mvprintw(0,0,"PC: %08X", *pc);
     write_regs(register_root_x, register_root_y, register_h, register_w);
     if (showing_mem) write_memory(aux_root_x, aux_root_y, aux_w, aux_h);
     else write_stack(aux_root_x, aux_root_y, aux_w, aux_h);
     write_code(code_root_x, code_root_y, code_h, code_w);
 
-    mvprintw(input_root_y+2, input_root_x+input_w-15, "PC=0x%08lX", *pc);
+    //mvprintw(input_root_y+2, input_root_x+input_w-15, "PC=0x%08lX", *pc);
     
     if (showing_error) attron(COLOR_PAIR(C_ERROR));
     else attron(COLOR_PAIR(C_TERMINAL));
@@ -307,12 +317,18 @@ Command frontend_update() {
 
         if (mouse.bstate == BUTTON4_PRESSED) {
             if (mouse.x<columns/2) code_scroll = code_scroll==0?code_scroll:code_scroll-1;
-            else if (mouse.x<3*columns/4) memory_scroll = memory_scroll==0?memory_scroll:memory_scroll-1;
+            else if (mouse.x<3*columns/4) {
+                if (showing_mem) aux_scroll = aux_scroll==0?aux_scroll:aux_scroll-1;
+                else aux_scroll = aux_scroll==0?aux_scroll:aux_scroll-1;
+            }
         }
 
         if (mouse.bstate == BUTTON5_PRESSED) {
             if (mouse.x<columns/2) code_scroll = code_scroll<=(lines_of_code-5)?code_scroll+1:code_scroll;
-            else if (mouse.x<3*columns/4) memory_scroll = memory_scroll<=(memory_size-5)?memory_scroll+1:memory_scroll;
+            else if (mouse.x<3*columns/4) {
+                if (showing_mem) aux_scroll = aux_scroll<=(memory_size-5)?aux_scroll+1:aux_scroll;
+                else aux_scroll = aux_scroll<=(stack->len-5)?aux_scroll+1:aux_scroll;
+            }
         }
 
         return NONE;
@@ -332,12 +348,18 @@ Command frontend_update() {
 
     if (input == KEY_UP) {
         if (mouse.x<columns/2) code_scroll = code_scroll==0?code_scroll:code_scroll-1;
-        else if (mouse.x<3*columns/4) memory_scroll = memory_scroll==0?memory_scroll:memory_scroll-1;
+        else if (mouse.x<3*columns/4) {
+            if (showing_mem) aux_scroll = aux_scroll==0?aux_scroll:aux_scroll-1;
+            else aux_scroll = aux_scroll==0?aux_scroll:aux_scroll-1;
+        }
     }
 
     if (input == KEY_DOWN) {
         if (mouse.x<columns/2) code_scroll = code_scroll<=(lines_of_code-5)?code_scroll+1:code_scroll;
-        else if (mouse.x<3*columns/4) memory_scroll = memory_scroll<=(memory_size-5)?memory_scroll+1:memory_scroll;
+        else if (mouse.x<3*columns/4) {
+            if (showing_mem) aux_scroll = aux_scroll<=(memory_size-5)?aux_scroll+1:aux_scroll;
+            else aux_scroll = aux_scroll<=(stack->len-5)?aux_scroll+1:aux_scroll;
+        }
     }
 
     if (run_lock) {return input=='q'?STOP:NONE;}
@@ -434,7 +456,7 @@ Command frontend_update() {
                 return NONE;
             }
             
-            memory_scroll = new_addr;
+            aux_scroll = new_addr;
             showing_mem = true;
 
         } else if (last_command_len == 4 && !strcmp("$run", last_command)) {
@@ -450,6 +472,7 @@ Command frontend_update() {
 
         } else if (last_command_len == 11 && !strcmp("$show-stack", last_command)) {
             if (!showing_mem) show_error("Stack Trace is already shown on the right!");
+            else aux_scroll = 0;
             showing_mem = false;
 
         } else if (last_command_len == 5 && !strcmp("$regs", last_command)) {

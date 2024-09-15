@@ -2,6 +2,5 @@ todos:
 
 Comma sep values
 Memory safety
-stack functionality check
 
 labels in code view?

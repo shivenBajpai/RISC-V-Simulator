@@ -52,8 +52,7 @@ int get_section_label(label_index* index, int line) {
 	int candidate = -1;
 
 	for(int i=0; i<index->len; i++) {
-		// printf("Loop\n");
-		if (index->positions[i] <= line) candidate = i;
+		if (index->positions[i] <= line && index->positions[i] > candidate) candidate = i;
 	}
 	
 	return candidate;

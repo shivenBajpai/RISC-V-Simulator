@@ -108,6 +108,7 @@ int main(int* argc, char** argv) {
 				free(temp_mem);
 
 				set_stack_pointer(stack);
+				set_stacktrace_pointer(stack);
 				set_labels_pointer(index);
 				update_code(cleaned_code, hexcode[0]); //  Need to update breakpoints as per ebreak instructions
 				set_hexcode_pointer((uint32_t*) &hexcode[1]);
@@ -117,6 +118,10 @@ int main(int* argc, char** argv) {
 				int result = run(&frontend_update);
 				release_run_lock();
 				if (result == 0) show_error("Execution stopped at breakpoint!");
+				else if (result == 1) {
+					show_error("Reached End of Program");
+					st_pop(stack);
+				}
 				break;
 
 			case RESET:
@@ -127,6 +132,7 @@ int main(int* argc, char** argv) {
 				reset_backend();
 
 				set_stack_pointer(stack);
+				set_stacktrace_pointer(stack);
 				memcpy(get_memory_pointer(), &hexcode[1], hexcode[0]*4);
 				set_hexcode_pointer((uint32_t*) &hexcode[1]);
 				break;

@@ -3,12 +3,14 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <sys/timeb.h>
-# include <bits/types/struct_timeb.h>
+#include <bits/types/struct_timeb.h>
 #include <string.h>
 #include "../globals.h"
 #include "../assembler/vec.h"
 #include "../frontend/frontend.h"
 #include "backend.h"
+
+# define RUN_DELAY 0
 
 enum Opcode {
     R_Type      = 0b0110011,
@@ -18,8 +20,8 @@ enum Opcode {
     B_Type      = 0b1100011,
     JAL         = 0b1101111,
     JALR        = 0b1100111,
-    // LUI         = 0b0110111,
-    // AUIPC       = 0b0010111,
+    LUI         = 0b0110111,
+    AUIPC       = 0b0010111,
     EBREAK      = 0b1110011,
     NOP         = 0, // Made up marker
 };
@@ -113,13 +115,6 @@ int step() {
         exit(1);
     }
 
-    for (int i=0; i<breakpoints->len; i++) {
-        if (pc/4==breakpoints->values[i]) {
-            pc += 4;
-            return 1;
-        }
-    }
-
     uint32_t instruction = (memory[pc+3] << 24) | (memory[pc+2] << 16) | (memory[pc+1] << 8) |  memory[pc];
     uint32_t funct_op = 0;
     uint64_t imm = 0;
@@ -135,6 +130,7 @@ int step() {
             break;
 
         case I_Type:
+        case JALR:
         case Load_Type:
             imm = (instruction & 0xFFF00000) >> 20;
             imm |= (imm & 0x800)?0xFFFFFFFFFFFFF000:0; // Sign Bit extension
@@ -156,12 +152,17 @@ int step() {
         case EBREAK:
             funct_op = instruction & 0x0010007F;
             pc += 4;
-            return 1;
-        
+            return 0;
+
         case JAL:
-        case JALR:
             imm = (((instruction & 0x000FF000)) + ((instruction & 0x00100000) >> 9) + ((instruction & 0x80000000) >> 11) + ((instruction & 0x7FE00000) >> 20));
             imm |= (imm & 0x100000)?0xFFFFFFFFFFF00000:0; // Sign Bit extension
+            funct_op = instruction & 0x0000007F;
+            break;
+
+        case LUI:
+        case AUIPC:
+            imm = (instruction & 0xFFFFF000) >> 12;
             funct_op = instruction & 0x0000007F;
             break;
 
@@ -248,25 +249,25 @@ int step() {
 
         case lb:
             data = *(memory + *rs1 + imm);
-            if (data&0x00000008) data += 0xFFFFFF0;
+            if (data&0x00000008) data |= 0xFFFFFF0;
             *rd = data;
             break;
 
         case lh:
             data = *(uint16_t*)(memory + *rs1 + imm); // TODO: Memory safety
-            if (data&0x00000008) data += 0xFFFFFF0;
+            if (data&0x00000080) data |= 0xFFFFF00;
             *rd = data;
             break;
 
         case lw:
             data = *(uint32_t*)(memory + *rs1 + imm);
-            if (data&0x00000008) data += 0xFFFFFF0;
+            if (data&0x00008000) data |= 0xFFFFFF0;
             *rd = data;
             break;
 
         case ld:
             data = *(uint64_t*)(memory + *rs1 + imm);
-            if (data&0x00000008) data += 0xFFFFFF0;
+            if (data&0x80000000) data |= 0xFFFFFF0;
             *rd = data;
             break;
 
@@ -283,19 +284,19 @@ int step() {
             break;
 
         case sb:
-            memcpy(rs2, memory + *rs1 + imm, 1);
+            memcpy(memory + *rs1 + imm, rs2, 1);
             break;
 
         case sh:
-            memcpy(rs2, memory + *rs1 + imm, 2);
+            memcpy(memory + *rs1 + imm, rs2, 2);
             break;
         
         case sw:
-            memcpy(rs2, memory + *rs1 + imm, 4);
+            memcpy(memory + *rs1 + imm, rs2, 4);
             break;
         
         case sd:
-            memcpy(rs2, memory + *rs1 + imm, 8);
+            memcpy(memory + *rs1 + imm, rs2, 8);
             break;
 
         case beq:
@@ -323,18 +324,15 @@ int step() {
             break;
 
         case jal:
-            // printf("JAL: %lu %lu %lu\n", *rd, pc, imm);
-            // st_push(stack, 1 + pc/4);
+            st_push(stack, 1 + pc/4);
             *rd = pc + 4;
-            // printf("JAL: %lu %lu %lu\n", *rd, pc, imm);
             pc += imm - 4;
-            // printf("JAL: %lu %lu %lu\n", *rd, pc, imm);
             break;
 
         case jalr:
             *rd = pc + 4;
-            pc += *rs1 + imm - 4;
-            //st_pop(stack);
+            pc = *rs1 + imm - 4;
+            st_pop(stack);
             break;
 
         case lui:
@@ -352,6 +350,17 @@ int step() {
 
     pc += 4;
     registers[0] = 0;
+
+    if (memory[pc] == ebreak) {
+        return 1;
+    }
+
+    for (int i=0; i<breakpoints->len; i++) {
+        if (pc/4==breakpoints->values[i]) {
+            return 1;
+        }
+    }
+
     return 0;
 }
 
@@ -368,9 +377,9 @@ int run(Command (*callback)(void)) {
             if ((*callback)() == STOP) return 2;
             ftime(&time);
         } while (time.time*1000 + time.millitm < next_tick);
-        next_tick = time.time*1000 + time.millitm + 250;
+        next_tick = time.time*1000 + time.millitm + RUN_DELAY;
 
-        if (step()) return (pc >= DATA_BASE);
+        if (step()) return (pc >= DATA_BASE || memory[pc] == NOP);
         if ((*callback)() == STOP) return 2;
     }
 
