@@ -12,7 +12,8 @@ int read_greedy(FILE** in_fp, char* buffer, size_t n) {
 	int i = 0;
 	char c;
 
-	while((c = fgetc(fp)) != ' ' && c != '\t' && c != '\n' && c != ',' && c != EOF) {
+	while((c = fgetc(fp)) != '.' && c != '\n' && c != ',' && c != EOF) {
+		if (c == ' ' || c == '\t') continue;
 		if (i==n-1) return 1;
 		buffer[i] = c;
 		i++;
@@ -59,7 +60,6 @@ int pre_pass(FILE **in_fp, uint8_t* memory) {
 		switch (c) {
 			case '#':
 			case ';':
-				//printf("C1\n");
 				comment_flag = true;
 				if (command_flag) {
 					show_error("Unexpected comment on line %d", line_offset);
@@ -68,17 +68,15 @@ int pre_pass(FILE **in_fp, uint8_t* memory) {
 				break;
 
 			case EOF:
-				//printf("C2\n");
 				show_error("Unexpected End of file!");
 				return -1;
 
 			case '\n':
-				//printf("C3\n");
 				line_offset++;
 				comment_flag = false;
+				
 			case ' ':
 			case '\t':
-				//printf("C4 >%s<\n", buffer);
 				if (command_flag) {
 					buffer[i] = '\0';
 					if (!strcmp(buffer, "data")) {
@@ -89,64 +87,96 @@ int pre_pass(FILE **in_fp, uint8_t* memory) {
 						return line_offset-1;
 
 					} else if (!strcmp(buffer, "dword")) {
-						if (read_greedy(&fp, buffer, 80)) {
-							show_error("Value too large on line %d", line_offset);
-							return -1;
+						if (!data_flag) {
+							show_error("Invalid command outside data segment on line %d", line_offset);
 						}
 
-						imm = parse_imm(buffer, &endptr);
-						if (*endptr != '\0') {
-							show_error("Failed to parse value on line %d", line_offset);
-							return -1;
-						}
+						do {
+							if (read_greedy(&fp, buffer, 80)) {
+								show_error("Value too large on line %d", line_offset);
+								return -1;
+							}
 
-						memcpy(&memory[mem_pointer], &imm, 8);
-						mem_pointer += 8;
+							imm = parse_imm(buffer, &endptr);
+							if (*endptr != '\0') {
+								show_error("Failed to parse value on line %d", line_offset);
+								return -1;
+							}
+
+							memcpy(&memory[mem_pointer], &imm, 8);
+							mem_pointer += 8;
+						} while((c = fgetc(fp)) == ',');
+		
+						fseek(fp, -1, SEEK_CUR);
 
 					} else if (!strcmp(buffer, "word")) {
-						if (read_greedy(&fp, buffer, 80)) {
-							show_error("Value too large on line %d", line_offset);
-							return -1;
+						if (!data_flag) {
+							show_error("Invalid command outside data segment on line %d", line_offset);
 						}
 
-						imm = parse_imm(buffer, &endptr);
-						if (*endptr != '\0') {
-							show_error("Failed to parse value on line %d", line_offset);
-							return -1;
-						}
-						
-						memcpy(&memory[mem_pointer], &imm, 4);
-						mem_pointer += 4;
+						do {
+							if (read_greedy(&fp, buffer, 80)) {
+								show_error("Value too large on line %d", line_offset);
+								return -1;
+							}
+
+							imm = parse_imm(buffer, &endptr);
+							if (*endptr != '\0') {
+								show_error("Failed to parse value on line %d", line_offset);
+								return -1;
+							}
+
+							memcpy(&memory[mem_pointer], &imm, 4);
+							mem_pointer += 4;
+						} while((c = fgetc(fp)) == ',');
+		
+						fseek(fp, -1, SEEK_CUR);
 
 					} else if (!strcmp(buffer, "half")) {
-						if (read_greedy(&fp, buffer, 80)) {
-							show_error("Value too large on line %d", line_offset);
-							return -1;
+						if (!data_flag) {
+							show_error("Invalid command outside data segment on line %d", line_offset);
 						}
 
-						imm = parse_imm(buffer, &endptr);
-						if (*endptr != '\0') {
-							show_error("Failed to parse value on line %d", line_offset);
-							return -1;
-						}
-						
-						memcpy(&memory[mem_pointer], &imm, 2);
-						mem_pointer += 2;
+						do {
+							if (read_greedy(&fp, buffer, 80)) {
+								show_error("Value too large on line %d", line_offset);
+								return -1;
+							}
+
+							imm = parse_imm(buffer, &endptr);
+							if (*endptr != '\0') {
+								show_error("Failed to parse value on line %d", line_offset);
+								return -1;
+							}
+
+							memcpy(&memory[mem_pointer], &imm, 2);
+							mem_pointer += 2;
+						} while((c = fgetc(fp)) == ',');
+		
+						fseek(fp, -1, SEEK_CUR);
 					
 					} else if (!strcmp(buffer, "byte")) {
-						if (read_greedy(&fp, buffer, 80)) {
-							show_error("Value too large on line %d", line_offset);
-							return -1;
+						if (!data_flag) {
+							show_error("Invalid command outside data segment on line %d", line_offset);
 						}
 
-						imm = parse_imm(buffer, &endptr);
-						if (*endptr != '\0') {
-							show_error("Failed to parse value on line %d", line_offset);
-							return -1;
-						}
-						
-						memcpy(&memory[mem_pointer], &imm, 1);
-						mem_pointer += 1;
+						do {
+							if (read_greedy(&fp, buffer, 80)) {
+								show_error("Value too large on line %d", line_offset);
+								return -1;
+							}
+
+							imm = parse_imm(buffer, &endptr);
+							if (*endptr != '\0') {
+								show_error("Failed to parse value on line %d", line_offset);
+								return -1;
+							}
+
+							memcpy(&memory[mem_pointer], &imm, 1);
+							mem_pointer += 1;
+						} while((c = fgetc(fp)) == ',');
+		
+						fseek(fp, -1, SEEK_CUR);
 
 					} else {
 						show_error("Unknown statement on line %d", line_offset);
@@ -158,7 +188,6 @@ int pre_pass(FILE **in_fp, uint8_t* memory) {
 				break;
 
 			case '.':
-				//printf("DOT\n");
 				if (comment_flag) break;
 
 				if (command_flag) {
@@ -170,15 +199,12 @@ int pre_pass(FILE **in_fp, uint8_t* memory) {
 				break;
 
 			default:
-				//printf("C5 %d\n", command_flag);
 				if (comment_flag) break;
 				if (!command_flag) {
-					//printf("X2\n\n");
 					fseek(fp, -1, SEEK_CUR);
 					return line_offset-1;
 				}
 
-				//printf("X1\n\n");
 				buffer[i] = c;
 				i++;
 				if (i==79) {
@@ -188,8 +214,6 @@ int pre_pass(FILE **in_fp, uint8_t* memory) {
 				break;
 		}
 	}
-
-	//printf("X3\n");
 }
 
 // Reads in_fp and writes the same to out_fp while ignoring all whitespace, comments and labels (but makes a note of label positions)

@@ -98,9 +98,12 @@ int main(int* argc, char** argv) {
 				}
 
 				if (get_section_label(index, 0) == -1) add_label(index, "main", 0);
+				index_dedup(index);
 				if (stack) free(stack);
 				stack = new_stacktrace(index);
 				st_push(stack, 0);
+
+				// debug_print_label_index(index);
 
 				reset_backend();
 				memcpy(get_memory_pointer(), &hexcode[1], hexcode[0]*4); // hexcode[0] is implicitly the length in words. actual hexcode starts from hexcode[1]
@@ -109,8 +112,8 @@ int main(int* argc, char** argv) {
 
 				set_stack_pointer(stack);
 				set_stacktrace_pointer(stack);
-				set_labels_pointer(index);
 				update_code(cleaned_code, hexcode[0]); //  Need to update breakpoints as per ebreak instructions
+				set_labels_pointer(index);
 				set_hexcode_pointer((uint32_t*) &hexcode[1]);
 				break;
 

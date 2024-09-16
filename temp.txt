@@ -1,6 +1,4 @@
 todos:
 
-Comma sep values
 Memory safety
-
 labels in code view?

@@ -47,6 +47,44 @@ int label_to_position(label_index* index, char* label) {
 	return -1;
 }
 
+char* position_to_label(label_index* index, int position) {
+	
+	for(int i=0; i<index->len; i++) {
+		if (index->positions[i] == position) {
+			return index->labels[i];
+		}
+	}
+	
+	return NULL;
+}
+
+
+// Removes multiple labels for the same index, assumes labels were added in order
+void index_dedup(label_index* index) {
+
+	int pos = -1;
+	int i = -1;
+
+	// printf("CALL\r\n");
+
+	for(int j=0; j<index->len; j++) {
+		// printf("position %d\r\n", index->positions[j]);
+		if (index->positions[j] != pos) {
+			i++;
+			pos = index->positions[j];
+			if (i == j) continue;
+			index->positions[i] = index->positions[j];
+			if (index->labels[i]) free(index->labels[i]);
+			index->labels[i] = index->labels[j];
+			index->labels[j] = NULL;
+		}
+	}
+
+	index->len = i+1;
+
+	return;
+}
+
 int get_section_label(label_index* index, int line) {
 
 	int candidate = -1;

@@ -14,6 +14,10 @@ int add_label(label_index* index, char* label, int position);
 
 int label_to_position(label_index* index, char* label);
 
+char* position_to_label(label_index* index, int position);
+
+void index_dedup(label_index* index);
+
 int get_section_label(label_index* index, int line);
 
 label_index* new_label_index();
