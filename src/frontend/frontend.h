@@ -45,6 +45,7 @@ void show_error(char* format, ...);
 void set_run_lock();
 void release_run_lock();
 void reset_frontend();
+void set_reg_write(uint64_t reg);
 Command frontend_update();
 
 #endif

@@ -13,6 +13,8 @@
 #define C_ERROR 2
 #define C_RUNNING 3
 #define C_TERMINAL 4
+#define C_NORMAL_HIGHLIGHT 5
+#define C_OFF_NORMAL_HIGHLIGHT 6
 
 #define COLOR_GRAY COLOR_CYAN
 
@@ -30,8 +32,10 @@ bool showing_error = false;
 bool showing_mem = false;
 bool color_mode = false;
 bool run_lock = false;
+bool showing_run_lock = false;
 static MEVENT mouse;
 
+uint64_t last_reg_write = -2;
 uint64_t memory_size = 0;
 uint64_t* regs = NULL;
 uint64_t* pc = NULL;
@@ -49,7 +53,8 @@ void set_frontend_memory_pointer(uint8_t* memory_pointer, uint64_t size_of_memor
 void set_breakpoints_pointer(vec* breakpoints_pointer) {breakpoints = breakpoints_pointer;}
 void set_stack_pointer(stacktrace* stacktrace) {stack = stacktrace;}
 void set_hexcode_pointer(uint32_t* hexcode_pointer) {hexcode = hexcode_pointer;}
-void set_run_lock() {run_lock = true;}
+void set_run_lock() {run_lock = true; showing_run_lock = true;}
+void set_reg_write(uint64_t reg) {last_reg_write = reg;}
 
 void reset_frontend() {
     code_scroll = 0;
@@ -59,11 +64,13 @@ void reset_frontend() {
 
 void release_run_lock() {
     run_lock = false;
-    showing_error = false;
-    curs_set(1);
-    input_buffer[0] = '$';
-    input_buffer[1] = '\0';
-    input_buffer_len = 1;
+    if (showing_run_lock) {    
+        showing_error = false;
+        curs_set(1);
+        input_buffer[0] = '$';
+        input_buffer[1] = '\0';
+        input_buffer_len = 1;
+    }
 }
 
 // Must always be called after setting code
@@ -148,9 +155,17 @@ void write_regs(int x, int y, int h, int w) {
     for(int i=0; i<((h>36)?32:(h-4)); i++) {
 
         if (color_toggle) {
-            attron(COLOR_PAIR(C_OFF_NORMAL));
+            if (i-1==last_reg_write) attroff(COLOR_PAIR(C_NORMAL_HIGHLIGHT));
+            else attroff(COLOR_PAIR(C_NORMAL));
+
+            if (i==last_reg_write) attron(COLOR_PAIR(C_OFF_NORMAL_HIGHLIGHT));
+            else attron(COLOR_PAIR(C_OFF_NORMAL));
         } else {
-            attroff(COLOR_PAIR(C_OFF_NORMAL));
+            if (i-1==last_reg_write) attroff(COLOR_PAIR(C_OFF_NORMAL_HIGHLIGHT));
+            else attroff(COLOR_PAIR(C_OFF_NORMAL));
+
+            if (i==last_reg_write) attron(COLOR_PAIR(C_NORMAL_HIGHLIGHT));
+            else attron(COLOR_PAIR(C_NORMAL));
         }
 
         color_toggle = !color_toggle;
@@ -272,6 +287,8 @@ int init_frontend() {
         init_pair(C_ERROR, COLOR_WHITE, COLOR_RED);
         init_pair(C_RUNNING, COLOR_WHITE, COLOR_RED);
         init_pair(C_TERMINAL, COLOR_GREEN, COLOR_BLACK);
+        init_pair(C_NORMAL_HIGHLIGHT, COLOR_WHITE, COLOR_RED);
+        init_pair(C_OFF_NORMAL_HIGHLIGHT, COLOR_WHITE, COLOR_RED);
     }
 
     input_buffer = malloc((getmaxx(stdscr)-1)*sizeof(char));
@@ -386,6 +403,7 @@ void destroy_frontend() {
 void show_error(char* format, ...) {
     va_list args;
     va_start(args, format);
+    showing_run_lock = false;
 
     if (initialized) {
         vsprintf(input_buffer, format, args);
@@ -400,6 +418,10 @@ void show_error(char* format, ...) {
 Command frontend_update() {	
     draw();
     input = getch();
+
+    if (input == ERR) {
+        return NONE;
+    }
 
     if (input == KEY_MOUSE) {
         getmouse(&mouse);
@@ -423,16 +445,18 @@ Command frontend_update() {
         return NONE;
     }
 
-    if (input == ERR) {
-        return NONE;
-    }
-
     if (input == KEY_F(1)) { 
+        if (run_lock) {
+            show_error("Stopping execution, press F1 again to exit");
+            return STOP;
+        }
         return EXIT;
     }
 
     if (input == KEY_F(6)) {
-        return STOP;
+        if (run_lock) return STOP;
+        show_error("Nothing is running!");
+        return NONE;
     }
 
     if (input == KEY_UP) {
@@ -451,17 +475,24 @@ Command frontend_update() {
         }
     }
 
-    if (run_lock) {return input=='q'?STOP:NONE;}
-
     if (input == KEY_F(8)) {
+        if (run_lock) {
+            show_error("Command invalid while running!");
+            return NONE;
+        }
         return STEP;
     }
 
     if (input == KEY_F(5)) {
+        if (run_lock) {
+            show_error("Already running, Press F6 or type \"stop\" to stop!");
+            return NONE;
+        }
         return RUN;
     }
 
     if (showing_error) {
+        showing_run_lock = false;
         showing_error = false;
         curs_set(1);
         input_buffer[0] = '$';
@@ -492,10 +523,20 @@ Command frontend_update() {
         input_buffer_len = 1;
 
         if (!strncmp("$load ", last_command, 6)) {
+            if (run_lock) {
+                show_error("Command invalid while running!");
+                return NONE;
+            }
             strcpy(input_file, last_command+6);
             return LOAD;
 
         } else if (!strncmp("$break ", last_command, 7)) {
+
+            if (run_lock) {
+                show_error("Command invalid while running!");
+                return NONE;
+            }
+
             char* end_ptr = NULL;
             unsigned long break_line = strtol(last_command+7, &end_ptr, 10);
 
@@ -549,19 +590,33 @@ Command frontend_update() {
             showing_mem = true;
 
         } else if (last_command_len == 4 && !strcmp("$run", last_command)) {
+
+            if (run_lock) {
+                show_error("Already running, Press F6 or type \"stop\"to stop!");
+                return NONE;
+            }
+
             if (*pc/4 >= lines_of_code) {
                 show_error("Nothing to run! use reset command to reset");
                 return NONE;
             }
 
             set_run_lock();
-            show_error("Running! Use F6 or q to stop execution");
+            show_error("Running! Press F6 or type \"stop\" to stop execution");
             return RUN;
 
         } else if (last_command_len == 5 && !strcmp("$step", last_command)) {
+            if (run_lock) {
+                show_error("Command invalid while running!");
+                return NONE;
+            }
             return STEP;
 
         } else if (last_command_len == 6 && !strcmp("$reset", last_command)) {
+            if (run_lock) {
+                show_error("Command invalid while running!");
+                return NONE;
+            }
             return RESET;
 
         } else if (last_command_len == 11 && !strcmp("$show-stack", last_command)) {
@@ -573,7 +628,14 @@ Command frontend_update() {
             show_error("Registers are already shown on the right pane!");
 
         } else if (last_command_len == 5 && !strcmp("$exit", last_command)) {
+            if (run_lock) {
+                show_error("Stopping execution, use exit again to exit");
+                return STOP;
+            }
             return EXIT;
+
+        } else if (last_command_len == 5 && !strcmp("$stop", last_command)) {
+            return STOP;
 
         } else {
             show_error("Invalid command");

@@ -1,4 +1,5 @@
 todos:
 
-Memory safety
-labels in code view?
+Check for segfaults in simulated code
+more valgrinding
+report

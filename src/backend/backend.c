@@ -127,6 +127,7 @@ int step() {
     switch (instruction & 0x7F) {
         case R_Type:
             funct_op = instruction & 0xFE00707F;
+            set_reg_write(rd - registers);
             break;
 
         case I_Type:
@@ -135,6 +136,7 @@ int step() {
             imm = (instruction & 0xFFF00000) >> 20;
             imm |= (imm & 0x800)?0xFFFFFFFFFFFFF000:0; // Sign Bit extension
             funct_op = instruction & 0x0000707F;
+            set_reg_write(rd - registers);
             break;
 
         case S_Type:
@@ -158,12 +160,14 @@ int step() {
             imm = (((instruction & 0x000FF000)) + ((instruction & 0x00100000) >> 9) + ((instruction & 0x80000000) >> 11) + ((instruction & 0x7FE00000) >> 20));
             imm |= (imm & 0x100000)?0xFFFFFFFFFFF00000:0; // Sign Bit extension
             funct_op = instruction & 0x0000007F;
+            set_reg_write(rd - registers);
             break;
 
         case LUI:
         case AUIPC:
             imm = (instruction & 0xFFFFF000) >> 12;
             funct_op = instruction & 0x0000007F;
+            set_reg_write(rd - registers);
             break;
 
         case NOP:
