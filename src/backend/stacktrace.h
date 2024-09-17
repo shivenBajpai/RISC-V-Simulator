@@ -21,6 +21,8 @@ void st_clear(stacktrace* st);
 
 stacktrace* new_stacktrace(label_index* index);
 
+void st_free(stacktrace* st);
+
 #endif
 /*
 Okay so its gonna be like

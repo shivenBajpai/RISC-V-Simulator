@@ -86,7 +86,7 @@ int main(int* argc, char** argv) {
 					break;
 				}
 				
-				if (index) free(index);
+				if (index) free_label_index(index);
 				index = new_label_index();
 				memset(memory_template, 0, sizeof(memory_template));
 
@@ -98,7 +98,7 @@ int main(int* argc, char** argv) {
 
 				if (get_section_label(index, 0) == -1) add_label(index, "main", 0);
 				index_dedup(index);
-				if (stack) free(stack);
+				if (stack) st_free(stack);
 				stack = new_stacktrace(index);
 				st_push(stack, 0);
 
@@ -128,7 +128,7 @@ int main(int* argc, char** argv) {
 				break;
 
 			case RESET:
-				if (stack) free(stack);
+				if (stack) st_free(stack);
 				stack = new_stacktrace(index);
 				st_push(stack, 0);
 
@@ -156,12 +156,13 @@ int main(int* argc, char** argv) {
 
 	exit:
 	if (hexcode) free(hexcode);
-	if (stack) free(stack);
-	if (index) free(index);
+	if (stack) st_free(stack);
+	if (index) free_label_index(index);
 	if (cleaned_code) free(cleaned_code);
 	free(memory_template);
 	destroy_frontend();
 	// TODO: FREE BACKEND MEMORY
 	free_managed_array(breakpoints);
+	exit_curses();
 	return 0;
 }

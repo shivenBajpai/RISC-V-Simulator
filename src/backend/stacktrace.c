@@ -32,6 +32,12 @@ void st_update(stacktrace* st, int line) {
     st->stack->values[st->len-1] = line;
 }
 
+void st_free(stacktrace* st) {
+    free_managed_array(st->stack);
+    free_managed_array(st->label_indices);
+    free(st);
+}
+
 stacktrace* new_stacktrace(label_index* index) {
     stacktrace* st = malloc(sizeof(stacktrace));
 

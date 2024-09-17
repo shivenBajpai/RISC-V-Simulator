@@ -102,7 +102,7 @@ void set_stacktrace_pointer(stacktrace* stacktrace) {stack = stacktrace;}
 void reset_backend() {
     memset(registers, 0, sizeof(registers));
     memset(memory, 0, sizeof(memory));
-    if (breakpoints) free(breakpoints);
+    if (breakpoints) free_managed_array(breakpoints);
     breakpoints = new_managed_array();
     pc = 0;
 }
