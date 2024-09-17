@@ -17,6 +17,8 @@ void st_pop(stacktrace* st);
 
 void st_update(stacktrace* st, int line);
 
+void st_clear(stacktrace* st);
+
 stacktrace* new_stacktrace(label_index* index);
 
 #endif

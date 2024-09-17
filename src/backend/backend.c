@@ -73,8 +73,8 @@ enum Instruction_Constants{
 
 static uint64_t registers[32] = {0};
 static uint64_t pc = 0;
-static vec *breakpoints;
-static stacktrace *stack;
+static vec *breakpoints = NULL;
+static stacktrace *stack = NULL;
 static uint8_t memory[MEMORY_SIZE] = {0};
 //Memory *memory;
 

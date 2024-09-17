@@ -58,6 +58,10 @@ void vec_remove(vec* array, size_t index) {
 	array->len -= 1;
 }
 
+void vec_clear(vec* array) {
+	array->len = 0;
+}
+
 void free_managed_array(vec* array) {
 	free(array->values);
 	free(array);

@@ -16,14 +16,14 @@
 
 #define COLOR_GRAY COLOR_CYAN
 
-int rows, columns;
+int rows=0, columns=0;
 int cursor=0;
-int input;
-int code_scroll;
+int input=ERR;
+int code_scroll=0;
 int aux_scroll=0;
 int lines_of_code=0;
-char* last_command;
-char* input_buffer;
+char* last_command = NULL;;
+char* input_buffer = NULL;;
 size_t input_buffer_len;
 bool initialized = false;
 bool showing_error = false;
@@ -32,14 +32,14 @@ bool color_mode = false;
 bool run_lock = false;
 static MEVENT mouse;
 
-uint64_t memory_size;
-uint64_t* regs;
-uint64_t* pc;
-uint8_t* memory;
-int* code_v_offsets;
-char** code=NULL;
-uint32_t* hexcode=NULL;
-vec* breakpoints;
+uint64_t memory_size = 0;
+uint64_t* regs = NULL;
+uint64_t* pc = NULL;
+uint8_t* memory = NULL;
+int* code_v_offsets = NULL;
+char** code = NULL;
+uint32_t* hexcode = NULL;
+vec* breakpoints = NULL;
 label_index* labels = NULL;
 stacktrace* stack = NULL;
 
@@ -50,6 +50,13 @@ void set_breakpoints_pointer(vec* breakpoints_pointer) {breakpoints = breakpoint
 void set_stack_pointer(stacktrace* stacktrace) {stack = stacktrace;}
 void set_hexcode_pointer(uint32_t* hexcode_pointer) {hexcode = hexcode_pointer;}
 void set_run_lock() {run_lock = true;}
+
+void reset_frontend() {
+    code_scroll = 0;
+    if (!showing_mem) aux_scroll = 0;
+    vec_clear(breakpoints);
+}
+
 void release_run_lock() {
     run_lock = false;
     showing_error = false;
@@ -220,7 +227,7 @@ void new_write_code(int x, int y, int h, int w) {
     }
 
     pos = *pc/4;
-    print_y = code_v_offsets[pos]-code_scroll;
+    print_y = pos<lines_of_code?code_v_offsets[pos]-code_scroll:-1;
     if (print_y>=0 && print_y<num_lines) {
         size_t size = sizeof(char) * (w+1);
         char* line = malloc(size);
@@ -352,7 +359,7 @@ void draw() {
     write_centered(aux_root_x, aux_root_y, aux_w, showing_mem?"MEMORY":"STACK");
     write_centered(code_root_x, code_root_y, code_w, "CODE");
 
-    mvprintw(0,0,"PC: %08X", *pc);
+    mvprintw(0,0,"PC: %08lX", *pc);
     write_regs(register_root_x, register_root_y, register_h, register_w);
     if (showing_mem) write_memory(aux_root_x, aux_root_y, aux_w, aux_h);
     else write_stack(aux_root_x, aux_root_y, aux_w, aux_h);
@@ -406,7 +413,7 @@ Command frontend_update() {
         }
 
         if (mouse.bstate == BUTTON5_PRESSED) {
-            if (mouse.x<columns/2) code_scroll = code_scroll<=(lines_of_code-5)?code_scroll+1:code_scroll;
+            if (mouse.x<columns/2) code_scroll = code_scroll<=code_v_offsets[lines_of_code-1]-5?code_scroll+1:code_scroll;
             else if (mouse.x<3*columns/4) {
                 if (showing_mem) aux_scroll = aux_scroll<=(memory_size-5)?aux_scroll+1:aux_scroll;
                 else aux_scroll = aux_scroll<=(stack->len-5)?aux_scroll+1:aux_scroll;
@@ -437,7 +444,7 @@ Command frontend_update() {
     }
 
     if (input == KEY_DOWN) {
-        if (mouse.x<columns/2) code_scroll = code_scroll<=(lines_of_code-5)?code_scroll+1:code_scroll;
+        if (mouse.x<columns/2) code_scroll = code_scroll<=code_v_offsets[lines_of_code-1]-5?code_scroll+1:code_scroll;
         else if (mouse.x<3*columns/4) {
             if (showing_mem) aux_scroll = aux_scroll<=(memory_size-5)?aux_scroll+1:aux_scroll;
             else aux_scroll = aux_scroll<=(stack->len-5)?aux_scroll+1:aux_scroll;
@@ -542,6 +549,11 @@ Command frontend_update() {
             showing_mem = true;
 
         } else if (last_command_len == 4 && !strcmp("$run", last_command)) {
+            if (*pc/4 >= lines_of_code) {
+                show_error("Nothing to run! use reset command to reset");
+                return NONE;
+            }
+
             set_run_lock();
             show_error("Running! Use F6 or q to stop execution");
             return RUN;

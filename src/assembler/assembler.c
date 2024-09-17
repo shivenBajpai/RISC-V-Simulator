@@ -296,6 +296,7 @@ int first_pass(FILE *in_fp, char *out_fp, label_index* index, vec* line_mapping,
 		}
 		whitespace_flag = false;
 	}
+	*(out_fp++) = '\0';
 	return 0;
 }
 
@@ -394,7 +395,7 @@ int second_pass(char* clean_fp, int* hexcode, label_index* index, vec* line_mapp
 	return 0;
 }
 
-int* assembler_main(FILE* in_fp, char* clean_fp, label_index* index, uint8_t* memory) {
+int* assembler_main(FILE* in_fp, char* cleaned, label_index* index, uint8_t* memory) {
 
 	// Initializing and Parsing command line switches
 	bool debug = false;
@@ -410,7 +411,7 @@ int* assembler_main(FILE* in_fp, char* clean_fp, label_index* index, uint8_t* me
 	}
 
 	// Perform the first pass
-	if ((result = first_pass(in_fp, clean_fp, index, line_mapping, result)) != 0) {
+	if ((result = first_pass(in_fp, cleaned, index, line_mapping, result)) != 0) {
 		return NULL;
 	}
 
@@ -418,7 +419,7 @@ int* assembler_main(FILE* in_fp, char* clean_fp, label_index* index, uint8_t* me
 	hexcode[0] = line_mapping->len;
 
 	// Perform the second pass
-	if ((result = second_pass(clean_fp, &hexcode[1], index, line_mapping, debug)) != 0) {
+	if ((result = second_pass(cleaned, &hexcode[1], index, line_mapping, debug)) != 0) {
 		return NULL;
 	}
 

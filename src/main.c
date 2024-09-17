@@ -3,7 +3,6 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
-#include <ncurses.h>
 #include "globals.h"
 #include "backend/backend.h"
 #include "frontend/frontend.h"
@@ -58,10 +57,11 @@ int main(int* argc, char** argv) {
 	set_breakpoints_pointer(get_breakpoints_pointer());
 
 	vec* breakpoints = new_managed_array();
-	stacktrace* stack;
-	label_index* index;
-	uint32_t* hexcode;
+	stacktrace* stack = NULL;
+	label_index* index = NULL;
+	uint32_t* hexcode = NULL;
 	Command command = NONE;
+	uint8_t *memory_template = malloc(sizeof(uint8_t)* MEMORY_SIZE);
 	char* cleaned_code = NULL;
 
 	while (1) {
@@ -80,7 +80,7 @@ int main(int* argc, char** argv) {
 				fseek(fp, 0L, SEEK_SET);
 
 				if (cleaned_code) free(cleaned_code);
-				cleaned_code = malloc(sizeof(char) * len);
+				cleaned_code = malloc(sizeof(char) * len+1);
 				if (!cleaned_code) {
 					show_error("Out Of Memory!");
 					break;
@@ -88,10 +88,9 @@ int main(int* argc, char** argv) {
 				
 				if (index) free(index);
 				index = new_label_index();
-				uint8_t *temp_mem = malloc(sizeof(uint8_t)* MEMORY_SIZE);
-				memset(temp_mem, 0, sizeof(temp_mem));
+				memset(memory_template, 0, sizeof(memory_template));
 
-				hexcode = assembler_main(fp, cleaned_code, index, temp_mem); // Need to add Data segment capabiltiy, and also need to add Breakpoint parsing
+				hexcode = assembler_main(fp, cleaned_code, index, memory_template); // Need to add Data segment capabiltiy, and also need to add Breakpoint parsing
 				fclose(fp);
 				if (!hexcode) {
 					break;
@@ -106,13 +105,14 @@ int main(int* argc, char** argv) {
 				// debug_print_label_index(index);
 
 				reset_backend();
+				//reset_frontend();
 				memcpy(get_memory_pointer(), &hexcode[1], hexcode[0]*4); // hexcode[0] is implicitly the length in words. actual hexcode starts from hexcode[1]
-				memcpy(get_memory_pointer()+DATA_BASE, temp_mem+DATA_BASE, MEMORY_SIZE-DATA_BASE);
-				free(temp_mem);
+				memcpy(get_memory_pointer()+DATA_BASE, memory_template+DATA_BASE, MEMORY_SIZE-DATA_BASE);
 
+				update_code(cleaned_code, hexcode[0]); //  Need to update breakpoints as per ebreak instructions
 				set_stack_pointer(stack);
 				set_stacktrace_pointer(stack);
-				update_code(cleaned_code, hexcode[0]); //  Need to update breakpoints as per ebreak instructions
+				set_breakpoints_pointer(get_breakpoints_pointer());
 				set_labels_pointer(index);
 				set_hexcode_pointer((uint32_t*) &hexcode[1]);
 				break;
@@ -123,7 +123,7 @@ int main(int* argc, char** argv) {
 				if (result == 0) show_error("Execution stopped at breakpoint!");
 				else if (result == 1) {
 					show_error("Reached End of Program");
-					st_pop(stack);
+					st_clear(stack);
 				}
 				break;
 
@@ -136,7 +136,9 @@ int main(int* argc, char** argv) {
 
 				set_stack_pointer(stack);
 				set_stacktrace_pointer(stack);
+				set_breakpoints_pointer(get_breakpoints_pointer());
 				memcpy(get_memory_pointer(), &hexcode[1], hexcode[0]*4);
+				memcpy(get_memory_pointer()+DATA_BASE, memory_template+DATA_BASE, MEMORY_SIZE-DATA_BASE);
 				set_hexcode_pointer((uint32_t*) &hexcode[1]);
 				break;
 
@@ -157,8 +159,9 @@ int main(int* argc, char** argv) {
 	if (stack) free(stack);
 	if (index) free(index);
 	if (cleaned_code) free(cleaned_code);
+	free(memory_template);
 	destroy_frontend();
-	// FREE BACKEND MEMORY
+	// TODO: FREE BACKEND MEMORY
 	free_managed_array(breakpoints);
 	return 0;
 }

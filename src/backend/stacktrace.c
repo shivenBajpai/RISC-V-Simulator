@@ -15,10 +15,17 @@ void st_push(stacktrace* st, int line) {
 
 void st_pop(stacktrace* st) {
 
+    if (st->len == 0) return;
     st->len--;
     vec_remove(st->stack, st->len);
     vec_remove(st->label_indices, st->len);
 
+}
+
+void st_clear(stacktrace* st) {
+    st->len = 0;
+    vec_clear(st->stack);
+    vec_clear(st->label_indices);
 }
 
 void st_update(stacktrace* st, int line) {

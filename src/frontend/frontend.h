@@ -44,6 +44,7 @@ void set_hexcode_pointer(uint32_t* hexcode_pointer);
 void show_error(char* format, ...);
 void set_run_lock();
 void release_run_lock();
+void reset_frontend();
 Command frontend_update();
 
 #endif
