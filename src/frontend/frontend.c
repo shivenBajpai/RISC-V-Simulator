@@ -592,7 +592,7 @@ Command frontend_update() {
         } else if (last_command_len == 4 && !strcmp("$run", last_command)) {
 
             if (run_lock) {
-                show_error("Already running, Press F6 or type \"stop\"to stop!");
+                show_error("Already running, Press F6 or type \"stop\" to stop!");
                 return NONE;
             }
 
