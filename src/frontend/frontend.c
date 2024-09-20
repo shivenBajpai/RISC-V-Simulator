@@ -287,8 +287,8 @@ int init_frontend() {
         init_pair(C_ERROR, COLOR_WHITE, COLOR_RED);
         init_pair(C_RUNNING, COLOR_WHITE, COLOR_RED);
         init_pair(C_TERMINAL, COLOR_GREEN, COLOR_BLACK);
-        init_pair(C_NORMAL_HIGHLIGHT, COLOR_WHITE, COLOR_RED);
-        init_pair(C_OFF_NORMAL_HIGHLIGHT, COLOR_WHITE, COLOR_RED);
+        init_pair(C_NORMAL_HIGHLIGHT, COLOR_WHITE, COLOR_YELLOW);
+        init_pair(C_OFF_NORMAL_HIGHLIGHT, COLOR_WHITE, COLOR_YELLOW);
     }
 
     input_buffer = malloc((getmaxx(stdscr)-1)*sizeof(char));

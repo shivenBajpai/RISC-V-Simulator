@@ -163,6 +163,5 @@ int main(int* argc, char** argv) {
 	destroy_frontend();
 	// TODO: FREE BACKEND MEMORY
 	free_managed_array(breakpoints);
-	exit_curses();
 	return 0;
 }

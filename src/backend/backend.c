@@ -244,7 +244,7 @@ int step() {
             break;
 
         case slti:
-            *rd = (*rs1 < imm)?1:0;
+            *rd = ((int64_t) *rs1 < (int64_t) imm)?1:0;
             break;
 
         case sltiu:
