@@ -1,7 +1,7 @@
 SHELL=/bin/bash
 CC = gcc
-CCFLAGS = -g -Ilibncurses/include/ncurses/ -Ilibncurses/include/ -Wno-deprecated-declarations
-CLFLAGS = -g -Llibncurses/lib/ -lncurses
+CCFLAGS = -g -Wno-deprecated-declarations
+CLFLAGS = -g -lncurses
 
 SRCDIR=src
 OBJDIR=build

@@ -10,7 +10,7 @@
 #include "../frontend/frontend.h"
 #include "backend.h"
 
-# define RUN_DELAY 0
+# define RUN_DELAY 125
 
 enum Opcode {
     R_Type      = 0b0110011,
@@ -140,7 +140,7 @@ int step() {
             break;
 
         case S_Type:
-            imm = (instruction & 0xFE000000) >> 20 + (instruction & 0x00000F80) >> 7;
+            imm = ((instruction & 0xFE000000) >> 20) + ((instruction & 0x00000F80) >> 7);
             imm |= (imm & 0x800)?0xFFFFFFFFFFFFF000:0; // Sign Bit extension
             funct_op = instruction & 0x0000707F;
             break;
