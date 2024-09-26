@@ -47,7 +47,7 @@ void set_labels_pointer(label_index* index);
 void update_code(char* code_pointer, uint64_t n);
 void show_error(char* format, ...);
 void release_run_lock();
-void reset_frontend();
+void reset_frontend(bool hard);
 Command frontend_update();
 
 #endif

@@ -1,7 +1,4 @@
 todos:
 
-The fixed interval wait still isnt right
-Check for segfaults in simulated code
 Fn args in stack trace
-more valgrinding
 report

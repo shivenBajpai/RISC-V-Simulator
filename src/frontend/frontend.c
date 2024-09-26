@@ -18,34 +18,34 @@
 
 #define COLOR_GRAY COLOR_CYAN
 
-int rows=0, columns=0;
-int cursor=0;
-int input=ERR;
-int code_scroll=0;
-int aux_scroll=0;
-int lines_of_code=0;
-char* last_command = NULL;;
-char* input_buffer = NULL;;
-size_t input_buffer_len;
-bool initialized = false;
-bool showing_error = false;
-bool showing_mem = false;
-bool color_mode = false;
-bool run_lock = false;
-bool showing_run_lock = false;
+static int rows=0, columns=0;
+static int cursor=0;
+static int input=ERR;
+static int code_scroll=0;
+static int aux_scroll=0;
+static int lines_of_code=0;
+static char* last_command = NULL;;
+static char* input_buffer = NULL;;
+static size_t input_buffer_len;
+static bool initialized = false;
+static bool showing_error = false;
+static bool showing_mem = false;
+static bool color_mode = false;
+static bool run_lock = false;
+static bool showing_run_lock = false;
 static MEVENT mouse;
 
-uint64_t last_reg_write = -2;
-uint64_t memory_size = 0;
-uint64_t* regs = NULL;
-uint64_t* pc = NULL;
-uint8_t* memory = NULL;
-int* code_v_offsets = NULL;
-char** code = NULL;
-uint32_t* hexcode = NULL;
-vec* breakpoints = NULL;
-label_index* labels = NULL;
-stacktrace* stack = NULL;
+static uint64_t last_reg_write = -2;
+static uint64_t memory_size = 0;
+static uint64_t* regs = NULL;
+static uint64_t* pc = NULL;
+static uint8_t* memory = NULL;
+static int* code_v_offsets = NULL;
+static char** code = NULL;
+static uint32_t* hexcode = NULL;
+static vec* breakpoints = NULL;
+static label_index* labels = NULL;
+static stacktrace* stack = NULL;
 
 void set_frontend_register_pointer(uint64_t* regs_pointer) {regs = regs_pointer;}
 void set_frontend_pc_pointer(uint64_t* pc_pointer) {pc = pc_pointer;}
@@ -56,10 +56,11 @@ void set_hexcode_pointer(uint32_t* hexcode_pointer) {hexcode = hexcode_pointer;}
 void set_run_lock() {run_lock = true; showing_run_lock = true;}
 void set_reg_write(uint64_t reg) {last_reg_write = reg;}
 
-void reset_frontend() {
-    code_scroll = 0;
+void reset_frontend(bool hard) {
+    if (hard) code_scroll = 0;
+    last_reg_write = -2;
     if (!showing_mem) aux_scroll = 0;
-    vec_clear(breakpoints);
+    if (hard) vec_clear(breakpoints);
 }
 
 void release_run_lock() {

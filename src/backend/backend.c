@@ -76,6 +76,7 @@ static uint64_t pc = 0;
 static vec *breakpoints = NULL;
 static stacktrace *stack = NULL;
 static uint8_t memory[MEMORY_SIZE] = {0};
+extern bool text_write_enabled;
 //Memory *memory;
 
 int core_dump(FILE* text) { 
@@ -110,9 +111,8 @@ void reset_backend() {
 int step() {
     // Run code 
     if (pc+3 >= DATA_BASE) {
-        segfault_flag = true;
-        cause = "Program counter ran into data segment";
-        exit(1);
+        show_error("Segmentation Fault! PC ran into data segment");
+        return 3;
     }
 
     uint32_t instruction = (memory[pc+3] << 24) | (memory[pc+2] << 16) | (memory[pc+1] << 8) |  memory[pc];
@@ -252,54 +252,118 @@ int step() {
             break;
 
         case lb:
+            if (*rs1 + imm >= MEMORY_SIZE) {
+                show_error("Segmentation Fault! line %d attempted to read byte at 0x%08lX", pc/4, (*rs1 + imm));
+                return 3;
+            }
             data = *(memory + *rs1 + imm);
             if (data&0x00000008) data |= 0xFFFFFF0;
             *rd = data;
             break;
 
         case lh:
-            data = *(uint16_t*)(memory + *rs1 + imm); // TODO: Memory safety
+            if (*rs1 + imm + 1 >= MEMORY_SIZE) {
+                show_error("Segmentation Fault! line %d attempted to read hword at 0x%08lX", pc/4, (*rs1 + imm));
+                return 3;
+            }
+            data = *(uint16_t*)(memory + *rs1 + imm);
             if (data&0x00000080) data |= 0xFFFFF00;
             *rd = data;
             break;
 
         case lw:
+            if (*rs1 + imm + 3 >= MEMORY_SIZE) {
+                show_error("Segmentation Fault! line %d attempted to read word at 0x%08lX", pc/4, (*rs1 + imm));
+                return 3;
+            }
             data = *(uint32_t*)(memory + *rs1 + imm);
             if (data&0x00008000) data |= 0xFFFFFF0;
             *rd = data;
             break;
 
         case ld:
+            if (*rs1 + imm + 7 >= MEMORY_SIZE) {
+                show_error("Segmentation Fault! line %d attempted to read dword at 0x%08lX", pc/4, (*rs1 + imm));
+                return 3;
+            }
             data = *(uint64_t*)(memory + *rs1 + imm);
             if (data&0x80000000) data |= 0xFFFFFF0;
             *rd = data;
             break;
 
         case lbu:
+            if (*rs1 + imm >= MEMORY_SIZE) {
+                show_error("Segmentation Fault! line %d attempted to read byte at 0x%08lX", pc/4, (*rs1 + imm));
+                return 3;
+            }
             *rs1 = *(memory + *rs1 + imm);
             break;
 
         case lhu:
+            if (*rs1 + imm + 1 >= MEMORY_SIZE) {
+                show_error("Segmentation Fault! line %d attempted to read hword at 0x%08lX", pc/4, (*rs1 + imm));
+                return 3;
+            }
             *rs1 = *(uint16_t*)(memory + *rs1 + imm);
             break;
 
         case lwu:
+            if (*rs1 + imm + 3 >= MEMORY_SIZE) {
+                show_error("Segmentation Fault! line %d attempted to read word at 0x%08lX", pc/4, (*rs1 + imm));
+                return 3;
+            }
             *rs1 = *(uint32_t*)(memory + *rs1 + imm);
             break;
 
         case sb:
+            if (*rs1 + imm >= MEMORY_SIZE) {
+                show_error("Segmentation Fault! line %d attempted to write byte at 0x%08lX", pc/4, (*rs1 + imm));
+                return 3;
+            }
+
+            if (!text_write_enabled && *rs1 + imm < DATA_BASE) {
+                show_error("Segmentation Fault! line %d attempted to write byte at 0x%08lX, smc is not enabled.", pc/4, (*rs1 + imm));
+                return 3;
+            }
             memcpy(memory + *rs1 + imm, rs2, 1);
             break;
 
         case sh:
+            if (*rs1 + imm + 1 >= MEMORY_SIZE) {
+                show_error("Segmentation Fault! line %d attempted to write hword at 0x%08lX", pc/4, (*rs1 + imm));
+                return 3;
+            }
+
+            if (!text_write_enabled && *rs1 + imm< DATA_BASE) {
+                show_error("Segmentation Fault! line %d attempted to write hword at 0x%08lX, smc is not enabled.", pc/4, (*rs1 + imm));
+                return 3;
+            }
             memcpy(memory + *rs1 + imm, rs2, 2);
             break;
         
         case sw:
+            if (*rs1 + imm + 3 >= MEMORY_SIZE) {
+                show_error("Segmentation Fault! line %d attempted to write word at 0x%08lX", pc/4, (*rs1 + imm));
+                return 3;
+            }
+
+            if (!text_write_enabled && *rs1 + imm< DATA_BASE) {
+                show_error("Segmentation Fault! line %d attempted to write word at 0x%08lX, smc is not enabled.", pc/4, (*rs1 + imm));
+                return 3;
+            }
             memcpy(memory + *rs1 + imm, rs2, 4);
             break;
         
         case sd:
+            if (*rs1 + imm + 7 >= MEMORY_SIZE) {
+                show_error("Segmentation Fault! line %d attempted to write dword at 0x%08lX", pc/4, (*rs1 + imm));
+                return 3;
+            }
+
+            if (!text_write_enabled && *rs1 + imm< DATA_BASE) {
+                show_error("Segmentation Fault! line %d attempted to write dword at 0x%08lX, smc is not enabled.", pc/4, (*rs1 + imm));
+                return 3;
+            }
             memcpy(memory + *rs1 + imm, rs2, 8);
             break;
 
@@ -356,12 +420,12 @@ int step() {
     registers[0] = 0;
 
     if (memory[pc] == ebreak) {
-        return 1;
+        return 2;
     }
 
     for (int i=0; i<breakpoints->len; i++) {
         if (pc/4==breakpoints->values[i]) {
-            return 1;
+            return 2;
         }
     }
 
@@ -375,17 +439,16 @@ int step() {
 int run(Command (*callback)(void)) {
     static time_t next_tick = 0;
     static struct timeb time;
+    int result;
 
-    while (memory[pc] != ebreak && pc < DATA_BASE) {
+    while (1) {
         do{
             if ((*callback)() == STOP) return 2;
             ftime(&time);
         } while (time.time*1000 + time.millitm < next_tick);
         next_tick = time.time*1000 + time.millitm + RUN_DELAY;
 
-        if (step()) return (pc >= DATA_BASE || memory[pc] == NOP);
-        if ((*callback)() == STOP) return 2;
+        if ((result = step())) return result;
+        if ((*callback)() == STOP) return 0;
     }
-
-    return (pc >= DATA_BASE);
 }
