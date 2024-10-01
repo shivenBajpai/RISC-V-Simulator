@@ -1,0 +1,98 @@
+\documentclass[12pt]{article}
+\usepackage{graphicx} % Required for inserting images
+\usepackage{amsmath}
+\usepackage[skip=10pt plus1pt, indent=0pt]{parskip}
+\usepackage[T1]{fontenc}
+\usepackage{geometry}
+\geometry{
+ a4paper,
+ total={170mm,257mm},
+ left=20mm,
+ top=20mm,
+ }
+
+ \begin{document}
+	\bibliographystyle{IEEEtran}
+	\vspace{3cm}
+
+	\title{CS2323 - Lab 4 - RISC V Simulator}
+	\author{Shiven Bajpai - AI24BTECH11030}
+
+	\maketitle
+	\bigskip    	
+
+	\renewcommand{\thefigure}{\theenumi}
+	\renewcommand{\thetable}{\theenumi}
+
+	\tableofcontents
+	\newpage
+
+	\section{Preface}
+	
+	The objective of this lab project was to extend the RISC-V assembler made in the previous lab project by making a Simulator that can run said code. I chose to add some additional flair to this project in the form of a Text-UI built using the ncurses terminal control library. The full features of my simluator are as follows
+
+	\begin{itemize}
+		\item Visual representation of assembled and source code next to each other, sectioned by labels. The current line being executed is highlighted.
+
+		\item Live view of registers that can be seen while running or stepping, with a live highlighting of the last change to register file.
+		
+		\item User can view the state of the memory that updates live as the program runs
+		
+		\item The user can specify breakpoints explicity using the \verb|break| command, or breakpoints can be implied using the \verb|ebreak| instruction, in either case the program stops execution at the breakpoint
+		
+		\item The simulator is built in a highly modular fashion. This means that the assembler, backend and frontend are largely interdependent, and only require a simple interface of a few functions to be exposed. So developing a new frontend (say a proper GUI) or a new simulator backend (Say a pipelined multi-stage processor implementation) can be done without having to make any significant changes to the rest of the project.
+		
+		\item Most errors are gracefully handled and shown within the TUI without exiting the program, so the user can recover from any mistakes and continue.
+		
+		\item There is an extra command beyond the requirements of the project called \verb|reset| that resets the simulator to its state when the file was initially loaded. This is useful because the only other way to reset would be to reload the file, which would override the set breakpoints. Using \verb|reset| means you do not lose any breakpoints, and also re-compilation is avoided.
+		
+		\item The program checks for Invalid memory access by the RISC-V instructions and ceases execution when such an instruction is encountered. Modifying the text section is normally not allowed, however if an experimental flag \verb|--self-modifying-code| is set then the simulator allows the program to write to the text section, thus allowing it to modify itself. Note that since the feature is experimental, the dissassembled representation is not guaranteed to be correct if this flag is specified, as that is read from the input file rather than being actual dissassembled code. The behaviour of the simulator in reponse to invalid instructions is also not defined.
+		
+		\item Lastly, although not a technical feature, the TUI gives it a cool hacker-esque vibe.
+	\end{itemize}
+	
+	The project was quite fun, I often found myself procrastinating on my other assignments by working on this project instead. I learnt quite a bit about ncurses and also C libraries in general as this was the first time I was using an external one. I would like to thank the professor for assigning such a fun and engaging project, but I do wish it had greater weightage in the final grade
+
+	\section{Overview}
+
+	\subsection{Breaking down the problem}
+
+	The simulator has four main parts. The assembler that is called when a file is loaded, The backend implementation that does the actual simulation, The Frontend that displays information and takes input from the user and the control code that serves coordinates these three and handles errors.
+
+	The overall program flow goes as follows,
+
+	<Flowchart of high level program flow>
+
+	\subsection{Application is not responding!}
+
+	Before we can talk about the technical parts in more detail, we need to talk about something much more important. The UI here's needs to remain responsive while the simulator is running. This means our program needs to be structured in a way such that it can asynchronously run the frontend and the backend. One such way to do this would be to make two threads. One for the frontend and the another for everything else. However in this project for the sake of simplicity, I have used a single thread and manually implemented a form of polling to keep the UI responsive.
+
+	\section{Adapting the assembler}
+
+	
+
+	\section{Writing the Backend}
+	
+	The simulator itself is relatively straightforward. It just has to load an instruction, decode it, and execute it. The validity of instructions is already guaranteed by the compiler (provided the \verb|--self-modifying-code| flag is not set, but since it is just an experimental flag I decided not to implement instruction validation for it.). Then we increment the PC and done! We can define the function that implements this process as the \verb|step()| and use it for the \verb|step| command. The \verb|run| command then can be implemented by simply calling \verb|step()| over and over again. Make an array to serve as the simulated memory and registers. Add a few conditions to test for breakpoints, invalid memory access and we're done.
+
+	- Keeping a stacktrace
+	- Step() and run()
+	- breakpoints
+	- SMC experimental feature
+
+	\section{Loading in a file}
+
+	- resetting
+
+	\section{Frontend}
+
+	- Keep it brief because it is not the focus of this project
+
+	\section{Appendices}
+	
+	\subsection{Build instructions}
+	\subsection{How to use the sim}
+	\subsection{Folder structure}
+	\subsection{Possible ways to improve this simulator}
+    
+\end{document}

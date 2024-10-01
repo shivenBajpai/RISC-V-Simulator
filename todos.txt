@@ -1,0 +1,34 @@
+todos:
+
+add UI usage instructions
+add PC Jump bounds checking
+what happens when commands are run without a loaded program
+report
+dead code analysis
+
+Aug 1: Func signature syntax
+
+#!sig(n)(dt,dt,dt)\n (Assumes args from x10 onwards)
+
+datatypes:
+hex
+binary
+signed
+unsigned
+ASCII
+
+Aug 2: Pipelined implementation
+
+Implement IF,ID,EX,MEM,WB registers, have it execute from the registers on a stepwise basis.
+We'll have a stall detector just using those conditions
+
+Then we can add an implementation of forwarding
+
+And we can add an implementation of branch prediction
+possibly with multiple options for the predictor type.
+
+But thats a lot of work.
+
+Aug 3: Cache implementation
+
+Aug 4: Memory usage indicator

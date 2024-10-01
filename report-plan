@@ -1,0 +1,35 @@
+Things I need to cover
+
+# Preface
+- What did we aim for and achieve
+- What did I learn from this
+
+# Overview
+
+- What all Do I need to do for this thing to work
+- Program control flow
+
+# Adapting the assembler
+
+- Look at commmit history for how the asssembler was adapted
+
+# Writing the Backend
+
+- Keeping a stacktrace
+- Step() and run()
+- breakpoints
+- SMC experimental feature
+
+# Loading in a file
+
+- resetting
+
+# Frontend
+
+- Keep it brief because it is not the focus of this project
+
+Appendices
+
+Build instructions
+How to use the sim
+Folder structure
