@@ -449,6 +449,6 @@ int run(Command (*callback)(void)) {
         next_tick = time.time*1000 + time.millitm + RUN_DELAY;
 
         if ((result = step())) return result;
-        if ((*callback)() == STOP) return 0;
+        if ((*callback)() == STOP) return 2;
     }
 }
