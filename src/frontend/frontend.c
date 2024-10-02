@@ -455,7 +455,10 @@ Command frontend_update() {
     }
 
     if (input == KEY_F(6)) {
-        if (run_lock) return STOP;
+        if (run_lock) {
+            showing_error = false;
+            return STOP;
+        }
         show_error("Nothing is running!");
         return NONE;
     }
@@ -489,6 +492,14 @@ Command frontend_update() {
             show_error("Already running, Press F6 or type \"stop\" to stop!");
             return NONE;
         }
+
+        if (*pc/4 >= lines_of_code) {
+            show_error("Nothing to run! use reset command to reset");
+            return NONE;
+        }
+
+        set_run_lock();
+        show_error("Running! Press F6 or type \"stop\" to stop execution");
         return RUN;
     }
 

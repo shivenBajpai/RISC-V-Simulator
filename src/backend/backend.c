@@ -443,12 +443,12 @@ int run(Command (*callback)(void)) {
 
     while (1) {
         do{
-            if ((*callback)() == STOP) return 2;
+            if ((*callback)() == STOP) return 0;
             ftime(&time);
         } while (time.time*1000 + time.millitm < next_tick);
         next_tick = time.time*1000 + time.millitm + RUN_DELAY;
 
         if ((result = step())) return result;
-        if ((*callback)() == STOP) return 2;
+        if ((*callback)() == STOP) return 0;
     }
 }
