@@ -1,7 +1,14 @@
 todos:
 
+add to report:
+test section
+flowchart
+
+Signed unsigned seems fucked up
+that stack line issue
 add UI usage instructions
 add PC Jump bounds checking
+breakpoint before or after instruction
 what happens when commands are run without a loaded program
 report
 dead code analysis

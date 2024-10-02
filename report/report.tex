@@ -48,6 +48,8 @@
 		
 		\item The program checks for Invalid memory access by the RISC-V instructions and ceases execution when such an instruction is encountered. Modifying the text section is normally not allowed, however if an experimental flag \verb|--self-modifying-code| is set then the simulator allows the program to write to the text section, thus allowing it to modify itself. Note that since the feature is experimental, the dissassembled representation is not guaranteed to be correct if this flag is specified, as that is read from the input file rather than being actual dissassembled code. The behaviour of the simulator in reponse to invalid instructions is also not defined.
 		
+		\item Has keyboard shortcuts for common actions
+
 		\item Lastly, although not a technical feature, the TUI gives it a cool hacker-esque vibe.
 	\end{itemize}
 	
@@ -69,30 +71,157 @@
 
 	\section{Adapting the assembler}
 
-	
+	Several changes need to be made to the assembler made in the previous project to make it suitable for this project.
+
+	\begin{enumerate}
+		\item The main function needs to be adapted to take in buffers as arguments, instead of reading file names from command line arguments and opening them itself.
+		\item Similarly, all other functions will need to be adapted to use buffers instead of file pointers.
+		\item The main function will also need to be given pointers where it can store objects with information such as label positions which was previously not required once the assembling process was done
+		\item An extra pre-processing step is required to read in the .data segment, and only pass on the .text segment to original first pass of the assembler. All error reporting needs to be updated to account for the line number offset due to the data segment. If no label like .text or .data is encountered, this step does nothing
+		\item All error reporting needs to be changed to use the \verb|show_error()| defined in the frontend, instead of printing to stdout.
+	\end{enumerate}
+
+	Other than this, I updated the custom types \verb|struct label_index| and \verb|struct vec| to have some more utility functions. I also changed the type of the values stored in \verb|struct vec| to be \verb|uint64_t| instead of \verb|int| so that I can use it to store memory locations without any concerns of overflow.
 
 	\section{Writing the Backend}
 	
-	The simulator itself is relatively straightforward. It just has to load an instruction, decode it, and execute it. The validity of instructions is already guaranteed by the compiler (provided the \verb|--self-modifying-code| flag is not set, but since it is just an experimental flag I decided not to implement instruction validation for it.). Then we increment the PC and done! We can define the function that implements this process as the \verb|step()| and use it for the \verb|step| command. The \verb|run| command then can be implemented by simply calling \verb|step()| over and over again. Make an array to serve as the simulated memory and registers. Add a few conditions to test for breakpoints, invalid memory access and we're done.
+	The simulator itself is relatively straightforward. It just has to load an instruction, decode it, and execute it. The validity of instructions is already guaranteed by the compiler (provided the \verb|--self-modifying-code| flag is not set, but since it is just an experimental flag I decided not to implement instruction validation for it.). Then we increment the PC and done! 
+	
+	We can define the function that implements this process as the \verb|step()| and use it for the \verb|step| command. The \verb|run| command then can be implemented by simply calling \verb|step()| over and over again. Make an array to serve as the simulated memory and registers. Add a few conditions to test for breakpoints, invalid memory access and we're done.
 
-	- Keeping a stacktrace
-	- Step() and run()
-	- breakpoints
-	- SMC experimental feature
+	The \verb|run()| function runs intructions only at a pace of about 5 per second. This is done using a timer and components from the builtin \verb|ftime| library. While waiting or the delay, the program keeps updating the frontend to ensure the application remains responsive. It checks between every frame if it is time to run the next instruction or not.
+
+	The implementation of the individual instructions and its parsing is done via a pair of large switch-case blocks. The details are trivial and I won't discuss it here.
+
+	To maintain a stacktrace, we create another \verb|struct vec|. At the start of the program, the location of the first instruction is pushed onto this stack.
+	Every time a jump instruction is taken, the address of that instruction is pushed onto this stack and every time a \verb|jalr| instruction is encountered, an address is popped off of the stack. Of course, this only works when jal and jalr are only used according to the convention and only for function calls.
+
+	Implementing breakpoints is also trivial, We just maintain a list of all breakpoint positions. On every 
+
+	Lastly, we add a few if conditions on instructions that perform jumps/branches or interact with memory to enforce Memory access rules and ensure that the PC is not moved out of bounds.
 
 	\section{Loading in a file}
 
-	- resetting
+	Loading in a file is a series of simple steps.
+	
+	\begin{enumerate}
+		\item Find the file, if not found, raise error
+		
+		\item Allocate buffers required to hold the results of assembly, Then transfer control to the assembler.
+		
+		\item If the assembler failed, report the error and abort. Otherwise, Reset the stack and breakpoints, Copy the output of the assembler into the simulated memory, Set the PC and the registers to 0. Pass the cleaned code to the frontend.
+		
+		\item If there is no label before the first, insert the label \verb|main| before the first line. Also remove any cases of multiple labels for the same line, keeping only the first.
+	\end{enumerate}
+
+	Since the simulator described in the problem statement has no method to revert the simulator to how it was before execution, the user command \verb|load| would have to be used for this purpose. The problem with this is that it clears any breakpoints that are set, which may not be desired. It also reruns the assembler which is not necessary.
+
+	So I made another user command \verb|reset| that does the same things as \verb|load| with the differences that it a) does not clear the breakpoints set and b) does not recompile the code, instead using the output from the previous run of the assembler.
 
 	\section{Frontend}
 
-	- Keep it brief because it is not the focus of this project
+	The frontend is designed to adapt to the size of the terminal by using the size of the terminal window either directly or indirectly in all of the position calculations, If the window is too small to show what needs to be shown, It skips drawing that section until the window is resized.
 
+	Since the frontend is not a part of the project requirements, I wont go into much detail on its implementation, But a brief description is as follows:
+
+	The frontend is made using the \verb|ncurses| terminal control library. There is a singular \verb|update()| function that is called regularly to take input and redraw the screen.
+
+	Any command sent to the application is held by the frontend, as well as parsed and processed by the frontend itself, It is only passed to higher control code if it requires code execution outside the frontend (e.g the \verb|run| or \verb|break| commands). Commands such as \verb|mem| and \verb|regs| are handled by the frontend itself.
+
+	Any data that needs to be shown is read directly from the backend's copy of the same if possible. The top level control code is responsible for ensuring the pointers for the same are set correctly using a series of \verb|get_<>_pointer()| and \verb|set_<>_pointer()| functions exposed by both the frontend and the backend.
+
+	For the Stack pane, the name of nearest previous label to the line number present in the stack is used as the label when displaying the entry in the frontend.
+
+	The "cleaned code" and index of labels that is created as an output of assembly process is used for the display of code divided by section labels in the Code pane. The calculation for the position of each line after taking into account sectioning due to labels is slightly complicated and would be inefficient to repeat on every draw of the frame, so all the positions are calculated only once when a file is loaded in and then re-used on every draw.
+
+	\section{Testing}
+
+	\newpage
+	\appendix
 	\section{Appendices}
 	
 	\subsection{Build instructions}
-	\subsection{How to use the sim}
-	\subsection{Folder structure}
-	\subsection{Possible ways to improve this simulator}
-    
+
+	To build this project, the development libraries for ncurses need to be installed using the command:
+
+	\verb|sudo apt install libncurses-dev|	
+
+	Then build the project by running \verb|make|\\
+	The binary is generated in \verb|/bin|
+
+	\subsection{Guide on how to use the simulator}
+
+	After running the simulator, the UI loads up in the terminal. After this all operations are done using a set of commands:
+
+	\verb|load <filename>|\\
+	Attempts to load a file of source code. The path is assumed to be relative unless it is a full path.
+	
+	\verb|run|\\
+	Runs the code from the current line until the end or next breakpoint. Executes about 5 instructions per second. Keyboard Shortcut: F5
+
+	\verb|step|\\
+	Runs one instruction, Keyboard Shortcut: F8
+
+	Tip: Holding down F8 runs the program a lot faster than \verb|run| does
+
+	\verb|stop|\\
+	Stops program execution, only meaningful after \verb|run|. Keyboard Shortcut: F6
+
+	\verb|reset|\\
+	Resets the simulator to the state it was in when the program was loaded, but does not remove any breakpoints and avoids recompilation
+
+	\verb|regs|\\
+	Is redundant since registers are always visible. Still implemented to give you an error saying the same because it was required in the problem statement
+
+	\verb|show-stack|\\
+	Shows the stacktrace in the memory/stack-trace pane. If the stack-trace is already being shown then it does nothing
+
+	\verb|mem <address>|\\
+	Shows the memory in the memory/stack-trace pane. The \verb|<count>| argument from the problem statement is not implemented as the ability to scroll on the memory pane makes it redundant.
+
+	\verb|break <line>|\\
+	Inserts a breakpoint at the specified line number, or removes it if already set. Line number must be as displayed in the code pane (0-indexed).
+
+	\verb|exit|\\
+	Closes the simulator. Keyboard Shortcut: F1
+	
+	Always use the \verb|exit| command, trying to exit using Ctrl + C will cause problems as terminal may get misconfigured and text may not render properly. If this occurs, you have to either restart the terminal or run the \verb|reset| terminal command.
+
+	You can scroll in the code, memory and stack pane pane.
+
+	\subsection{Project folder structure}
+	
+	\begin{verbatim}/
+	+-- bin
+	+-- build
+	+-- src
+	|   +-- assembler             (files from previous Lab assignment)
+	|   |   +-- assembler.c
+	|   |   +-- assembler.h
+	|   |   +-- index.c
+	|   |   +-- index.h
+	|   |   +-- translator.c
+	|   |   +-- translator.h
+	|   |   +-- vec.c
+	|   |   +-- vec.h
+	|   +-- backend               (implementation of the simulator)
+	|   |   +-- backend.c
+	|   |   +-- backend.h
+	|   |   +-- memory.c
+	|   |   +-- memory.h
+	|   |   +-- stacktrace.c
+	|   |   +-- stacktrace.h
+	|   +-- frontend              (ncurses frontend)
+	|   |   +-- frontend.c
+	|   |   +-- frontend.h
+	|   +-- main.c                (main loop, initialization, memory management)
+	|   +-- globals.c             (some globals)
+	|   +-- globals.h
+	+-- report
+	|   +-- report.tex
+	|   +-- report.pdf
+	+-- .gitignore
+	+-- LICENSE
+	+-- Makefile
+	+-- README.md\end{verbatim}
 \end{document}

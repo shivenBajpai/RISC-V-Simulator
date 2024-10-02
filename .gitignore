@@ -6,3 +6,4 @@
 /.VSCodeCounter/
 /libncurses/
 /libncursesdev/
+*.synctex.gz
