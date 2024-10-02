@@ -25,29 +25,6 @@ void exit_handler() {
 	if (cleaned_code) free(cleaned_code);
 	if (memory_template) free(memory_template);
 	destroy_frontend();
-
-	// TODO: FREE BACKEND MEMORY
-
-	// if (cause != NULL) {
-	// 	printf("%s\n", cause);
-	// }
-
-	// if (segfault_flag) {
-	// 	FILE *text_file = fopen("text.hex", "w");
-	// 	FILE *data_file = fopen("data.hex", "w");
-	// 	FILE *stack_file = fopen("stack.hex", "w");
-
-	// 	if (!text_file || !data_file || !stack_file) {
-	// 		printf("Failed to Core dump, couldn't write to files!\n");
-	// 	} else {
-	// 		//core_dump(memory, text_file, data_file, stack_file); // TODO: Core dumps!
-	// 		core_dump(text_file);
-	// 	}
-
-	// 	fclose(text_file);
-	// 	fclose(data_file);
-	// 	fclose(stack_file);
-	// }
 }
 
 int main(int* argc, char** argv) {

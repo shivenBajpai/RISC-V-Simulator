@@ -77,10 +77,8 @@ static vec *breakpoints = NULL;
 static stacktrace *stack = NULL;
 static uint8_t memory[MEMORY_SIZE] = {0};
 extern bool text_write_enabled;
-//Memory *memory;
 
 int core_dump(FILE* text) { 
-    //return memory_core_dump(memory, text, data, stack);
     if (fwrite(memory, sizeof(uint8_t), MEMORY_SIZE, text) != MEMORY_SIZE) printf("Core Dump Failed");
     return 0;
 }

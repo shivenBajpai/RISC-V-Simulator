@@ -1,16 +1,11 @@
 todos:
 
-that stack line issue
-need to clear stack whens stepping out of last line
-
 commenting
 dead code analysis
 
 add to report:
 test section
 flowchart
-
-
 
 
 Aug 1: Func signature syntax

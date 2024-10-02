@@ -34,8 +34,6 @@ int append(vec* array, uint64_t value) {
 	array->values[array->len] = value;
 	array->len++;
 
-	//printf("allocating %zu to %p, first value %lu\n", array->capacity * sizeof(uint64_t), array->values, array->values[1]);
-
 	// If space is insufficient, we double the capacity
 	if (array->len == array->capacity) {
 		array->capacity *= 2;

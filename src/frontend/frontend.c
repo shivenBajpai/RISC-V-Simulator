@@ -86,8 +86,6 @@ void set_labels_pointer(label_index* index) {
 
     for (int i=0; i<index->len; i++) {
 
-        // if (index->positions[i] == last) continue;
-
         for(int j=last; j<index->positions[i]; j++) {
             code_v_offsets[j] = offset+j;
         }
@@ -174,53 +172,9 @@ void write_regs(int x, int y, int h, int w) {
         color_toggle = !color_toggle;
 
         mvprintw(y+2+i, name_x, "x%02d %*s 0x%016lX", i, padding, "", regs[i]);
-        //mvprintw(y+2+i, value_x, "0x%016lX", regs[i]);
     }
 
     attroff(COLOR_PAIR(C_OFF_NORMAL));
-}
-
-void write_code(int x, int y, int h, int w) {
-    
-    if (!code) return;
-    
-    int inst_len = w-32;
-    int n_lines = lines_of_code-code_scroll<h-4?lines_of_code-code_scroll:h-4;
-    unsigned i=0;
-
-    if (inst_len<1) return;
-    char* label = NULL;
-
-    while (i<n_lines && y+2+code_v_offsets[i+code_scroll]-code_scroll < w-1) {
-        mvprintw(y+2+code_v_offsets[i+code_scroll]-code_scroll, x+5, "% 5d %04x: %.*s ", (i+code_scroll), (i+code_scroll)*4, inst_len, code[i+code_scroll]);
-        mvprintw(y+2+code_v_offsets[i+code_scroll]-code_scroll, x+w-2-12, "%08X %s ", hexcode[i+code_scroll], "  ");
-        i++;
-    }
-
-    i = *pc/4;
-    if (i>=code_scroll && i<n_lines+code_scroll) {
-        size_t size = sizeof(char) * (w+1);
-        char* line = malloc(size);
-        snprintf(line, w+1, "% 5d %04x: %.*s", i, (i)*4, inst_len, code[i]);
-        int space_count = w-strlen(line)-19;
-
-        attron(COLOR_PAIR(C_RUNNING));
-        mvprintw(y+2+code_v_offsets[i+code_scroll]-code_scroll, x+5, "%s%*s%08X %s ", line, space_count, "", hexcode[i], "EX");
-        attroff(COLOR_PAIR(C_RUNNING));
-        if (line) free(line);
-    }
-
-    int pos;
-    for (int i=0; i<breakpoints->len; i++) {
-        pos = breakpoints->values[i]-code_scroll;
-        if (pos>=0 && pos<n_lines) mvaddch(y+2+pos, x+3, '>'); // ADd scrolling
-    }
-
-    for (int i=0; i<labels->len; i++) {
-        int label_y = y+2+code_v_offsets[code_v_offsets[labels->positions[i]]]-code_scroll-1;
-        printf("%d\n", label_y);
-        if (label_y>=code_scroll && label_y<n_lines+code_scroll) mvaddstr(label_y, x+2, labels->labels[i]);;
-    }
 }
 
 void new_write_code(int x, int y, int h, int w) {
@@ -386,8 +340,6 @@ void draw() {
     else write_stack(aux_root_x, aux_root_y, aux_w, aux_h);
     new_write_code(code_root_x, code_root_y, code_h, code_w);
 
-    //mvprintw(input_root_y+2, input_root_x+input_w-15, "PC=0x%08lX", *pc);
-    
     if (showing_error) attron(COLOR_PAIR(C_ERROR));
     else attron(COLOR_PAIR(C_TERMINAL));
 
