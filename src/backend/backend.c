@@ -213,7 +213,7 @@ int step() {
             break;
 
         case slt:
-            *rd = (*rs1 < *rs2)?1:0;
+            *rd = ((int64_t) *rs1 < (int64_t) *rs2)?1:0;
             break;
 
         case sltu:
@@ -241,8 +241,8 @@ int step() {
             break;
 
         case srli:
-            if (imm & 0x20) *rd = (*rs1 >> imm) + ~((~0) >> imm);
-            else  *rd = *rs1 >> imm;
+            if (imm & 0x20) *rd = (*rs1 >> imm) + ~((~0) >> imm); //srai
+            else  *rd = *rs1 >> imm; //srli
             break;
 
         case slti:

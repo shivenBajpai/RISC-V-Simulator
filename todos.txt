@@ -1,10 +1,7 @@
 todos:
 
-Signed unsigned seems fucked up
 that stack line issue
 need to clear stack whens stepping out of last line
-
-add PC Jump bounds checking
 
 commenting
 dead code analysis

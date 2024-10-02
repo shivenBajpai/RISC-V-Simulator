@@ -87,22 +87,34 @@ int main(int* argc, char** argv) {
 				long len = ftell(fp);
 				fseek(fp, 0L, SEEK_SET);
 
-				if (cleaned_code) free(cleaned_code);
-				cleaned_code = malloc(sizeof(char) * len+1);
-				if (!cleaned_code) {
+				char* new_cleaned_code = malloc(sizeof(char) * len+1);
+				if (!new_cleaned_code) {
 					show_error("Out Of Memory!");
 					break;
 				}
 				
-				if (index_of_labels) free_label_index(index_of_labels);
-				index_of_labels = new_label_index();
-				memset(memory_template, 0, sizeof(memory_template));
+				label_index* new_index_of_labels = new_label_index();
 
-				hexcode = assembler_main(fp, cleaned_code, index_of_labels, memory_template); // Need to add Data segment capabiltiy, and also need to add Breakpoint parsing
+				uint8_t* new_memory_template = malloc(sizeof(uint8_t)* MEMORY_SIZE);
+				memset(new_memory_template, 0, sizeof(uint8_t)*MEMORY_SIZE);
+
+				hexcode = assembler_main(fp, new_cleaned_code, new_index_of_labels, new_memory_template); // Need to add Data segment capabiltiy, and also need to add Breakpoint parsing
 				fclose(fp);
 				if (!hexcode) {
+					free(new_cleaned_code);
+					free(new_index_of_labels);
+					free(new_memory_template);
 					break;
 				}
+				
+				if (index_of_labels) free_label_index(index_of_labels);
+				index_of_labels = new_index_of_labels;
+
+				if (cleaned_code) free(cleaned_code);
+				cleaned_code = new_cleaned_code;
+
+				if (memory_template) free(memory_template);
+				memory_template = new_memory_template;
 
 				if (get_section_label(index_of_labels, 0) == -1) add_label(index_of_labels, "main", 0);
 				index_dedup(index_of_labels);
