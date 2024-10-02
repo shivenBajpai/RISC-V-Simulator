@@ -255,7 +255,7 @@ int step() {
 
         case lb:
             if (*rs1 + imm >= MEMORY_SIZE) {
-                show_error("Segmentation Fault! line %d attempted to read byte at 0x%08lX", pc/4, (*rs1 + imm));
+                show_error("Invalid Memory Access! line %d attempted to read byte at 0x%08lX", pc/4, (*rs1 + imm));
                 return 3;
             }
             data = *(memory + *rs1 + imm);
@@ -265,7 +265,7 @@ int step() {
 
         case lh:
             if (*rs1 + imm + 1 >= MEMORY_SIZE) {
-                show_error("Segmentation Fault! line %d attempted to read hword at 0x%08lX", pc/4, (*rs1 + imm));
+                show_error("Invalid Memory Access! line %d attempted to read hword at 0x%08lX", pc/4, (*rs1 + imm));
                 return 3;
             }
             data = *(uint16_t*)(memory + *rs1 + imm);
@@ -275,7 +275,7 @@ int step() {
 
         case lw:
             if (*rs1 + imm + 3 >= MEMORY_SIZE) {
-                show_error("Segmentation Fault! line %d attempted to read word at 0x%08lX", pc/4, (*rs1 + imm));
+                show_error("Invalid Memory Access! line %d attempted to read word at 0x%08lX", pc/4, (*rs1 + imm));
                 return 3;
             }
             data = *(uint32_t*)(memory + *rs1 + imm);
@@ -285,7 +285,7 @@ int step() {
 
         case ld:
             if (*rs1 + imm + 7 >= MEMORY_SIZE) {
-                show_error("Segmentation Fault! line %d attempted to read dword at 0x%08lX", pc/4, (*rs1 + imm));
+                show_error("Invalid Memory Access! line %d attempted to read dword at 0x%08lX", pc/4, (*rs1 + imm));
                 return 3;
             }
             data = *(uint64_t*)(memory + *rs1 + imm);
@@ -295,7 +295,7 @@ int step() {
 
         case lbu:
             if (*rs1 + imm >= MEMORY_SIZE) {
-                show_error("Segmentation Fault! line %d attempted to read byte at 0x%08lX", pc/4, (*rs1 + imm));
+                show_error("Invalid Memory Access! line %d attempted to read byte at 0x%08lX", pc/4, (*rs1 + imm));
                 return 3;
             }
             *rs1 = *(memory + *rs1 + imm);
@@ -303,7 +303,7 @@ int step() {
 
         case lhu:
             if (*rs1 + imm + 1 >= MEMORY_SIZE) {
-                show_error("Segmentation Fault! line %d attempted to read hword at 0x%08lX", pc/4, (*rs1 + imm));
+                show_error("Invalid Memory Access! line %d attempted to read hword at 0x%08lX", pc/4, (*rs1 + imm));
                 return 3;
             }
             *rs1 = *(uint16_t*)(memory + *rs1 + imm);
@@ -311,7 +311,7 @@ int step() {
 
         case lwu:
             if (*rs1 + imm + 3 >= MEMORY_SIZE) {
-                show_error("Segmentation Fault! line %d attempted to read word at 0x%08lX", pc/4, (*rs1 + imm));
+                show_error("Invalid Memory Access! line %d attempted to read word at 0x%08lX", pc/4, (*rs1 + imm));
                 return 3;
             }
             *rs1 = *(uint32_t*)(memory + *rs1 + imm);
@@ -319,12 +319,12 @@ int step() {
 
         case sb:
             if (*rs1 + imm >= MEMORY_SIZE) {
-                show_error("Segmentation Fault! line %d attempted to write byte at 0x%08lX", pc/4, (*rs1 + imm));
+                show_error("Invalid Memory Access! line %d attempted to write byte at 0x%08lX", pc/4, (*rs1 + imm));
                 return 3;
             }
 
             if (!text_write_enabled && *rs1 + imm < DATA_BASE) {
-                show_error("Segmentation Fault! line %d attempted to write byte at 0x%08lX, smc is not enabled.", pc/4, (*rs1 + imm));
+                show_error("Invalid Memory Access! line %d attempted to write byte at 0x%08lX, smc is not enabled.", pc/4, (*rs1 + imm));
                 return 3;
             }
             memcpy(memory + *rs1 + imm, rs2, 1);
@@ -332,12 +332,12 @@ int step() {
 
         case sh:
             if (*rs1 + imm + 1 >= MEMORY_SIZE) {
-                show_error("Segmentation Fault! line %d attempted to write hword at 0x%08lX", pc/4, (*rs1 + imm));
+                show_error("Invalid Memory Access! line %d attempted to write hword at 0x%08lX", pc/4, (*rs1 + imm));
                 return 3;
             }
 
             if (!text_write_enabled && *rs1 + imm< DATA_BASE) {
-                show_error("Segmentation Fault! line %d attempted to write hword at 0x%08lX, smc is not enabled.", pc/4, (*rs1 + imm));
+                show_error("Invalid Memory Access! line %d attempted to write hword at 0x%08lX, smc is not enabled.", pc/4, (*rs1 + imm));
                 return 3;
             }
             memcpy(memory + *rs1 + imm, rs2, 2);
@@ -345,12 +345,12 @@ int step() {
         
         case sw:
             if (*rs1 + imm + 3 >= MEMORY_SIZE) {
-                show_error("Segmentation Fault! line %d attempted to write word at 0x%08lX", pc/4, (*rs1 + imm));
+                show_error("Invalid Memory Access! line %d attempted to write word at 0x%08lX", pc/4, (*rs1 + imm));
                 return 3;
             }
 
             if (!text_write_enabled && *rs1 + imm< DATA_BASE) {
-                show_error("Segmentation Fault! line %d attempted to write word at 0x%08lX, smc is not enabled.", pc/4, (*rs1 + imm));
+                show_error("Invalid Memory Access! line %d attempted to write word at 0x%08lX, smc is not enabled.", pc/4, (*rs1 + imm));
                 return 3;
             }
             memcpy(memory + *rs1 + imm, rs2, 4);
@@ -358,12 +358,12 @@ int step() {
         
         case sd:
             if (*rs1 + imm + 7 >= MEMORY_SIZE) {
-                show_error("Segmentation Fault! line %d attempted to write dword at 0x%08lX", pc/4, (*rs1 + imm));
+                show_error("Invalid Memory Access! line %d attempted to write dword at 0x%08lX", pc/4, (*rs1 + imm));
                 return 3;
             }
 
             if (!text_write_enabled && *rs1 + imm< DATA_BASE) {
-                show_error("Segmentation Fault! line %d attempted to write dword at 0x%08lX, smc is not enabled.", pc/4, (*rs1 + imm));
+                show_error("Invalid Memory Access! line %d attempted to write dword at 0x%08lX, smc is not enabled.", pc/4, (*rs1 + imm));
                 return 3;
             }
             memcpy(memory + *rs1 + imm, rs2, 8);

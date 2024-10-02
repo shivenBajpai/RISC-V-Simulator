@@ -5,7 +5,6 @@ that stack line issue
 need to clear stack whens stepping out of last line
 
 add PC Jump bounds checking
-what happens when commands are run without a loaded program
 
 commenting
 dead code analysis
