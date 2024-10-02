@@ -351,6 +351,7 @@ void write_stack(int x, int y, int w, int h) {
 
     for (int i=aux_scroll; i<last_line; i++) {
         if (stack->label_indices->values[i] < 0) continue;
+        if (stack->stack->values[i] == -1) continue;
         snprintf(line, w-4, "(%s:%ld)", labels->labels[stack->label_indices->values[i]], stack->stack->values[i]);
         write_centered(x, y+2+offset, w, line);
         offset++;

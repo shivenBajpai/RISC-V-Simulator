@@ -179,6 +179,8 @@ int step() {
             funct_op = instruction & 0x0000007F;
     }
     
+    st_update(stack, (pc/4)+1);
+
     switch (funct_op) {
         case add:
             *rd = *rs1 + *rs2;
@@ -394,9 +396,10 @@ int step() {
             break;
 
         case jal:
-            st_push(stack, 1 + pc/4);
             *rd = pc + 4;
             pc += imm - 4;
+            st_push(stack, 1 + pc/4);
+            st_update(stack, -1);
             break;
 
         case jalr:
@@ -425,6 +428,10 @@ int step() {
         return 2;
     }
 
+    if (memory[pc] == NOP) {
+        st_clear(stack);
+    }
+
     for (int i=0; i<breakpoints->len; i++) {
         if (pc/4==breakpoints->values[i]) {
             return 2;
@@ -435,9 +442,9 @@ int step() {
 }
 
 // Runs till ebreak or end of program
-// Returns 2 if user requested termination
+// Returns 0 if user requested termination
 // Returns 1 if end of program is reached
-// Returns 0 if breakpoint is reached
+// Returns 2 if breakpoint is reached
 int run(Command (*callback)(void)) {
     static time_t next_tick = 0;
     static struct timeb time;

@@ -143,7 +143,6 @@ int main(int* argc, char** argv) {
 				if (result == 2) show_error("Execution stopped at breakpoint!");
 				else if (result == 1) {
 					show_error("Reached End of Program");
-					st_clear(stack);
 				}
 				break;
 
