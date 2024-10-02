@@ -33,6 +33,7 @@ static bool showing_mem = false;
 static bool color_mode = false;
 static bool run_lock = false;
 static bool showing_run_lock = false;
+static bool code_loaded = false;
 static MEVENT mouse;
 
 static uint64_t last_reg_write = -2;
@@ -105,6 +106,7 @@ void update_code(char* code_pointer, uint64_t n) {
     
     code = malloc(sizeof(char*)*(n+1));
     code[0] = code_pointer;
+    code_loaded = true;
     int i=1;
     char c;
 
@@ -455,6 +457,10 @@ Command frontend_update() {
     }
 
     if (input == KEY_F(6)) {
+        if (!code_loaded) {
+            show_error("No code loaded! use load <filename> to load code");
+            return NONE;
+        }
         if (run_lock) {
             showing_error = false;
             return STOP;
@@ -480,6 +486,10 @@ Command frontend_update() {
     }
 
     if (input == KEY_F(8)) {
+        if (!code_loaded) {
+            show_error("No code loaded! use load <filename> to load code");
+            return NONE;
+        }
         if (run_lock) {
             show_error("Command invalid while running!");
             return NONE;
@@ -488,6 +498,11 @@ Command frontend_update() {
     }
 
     if (input == KEY_F(5)) {
+        if (!code_loaded) {
+            show_error("No code loaded! use load <filename> to load code");
+            return NONE;
+        }
+
         if (run_lock) {
             show_error("Already running, Press F6 or type \"stop\" to stop!");
             return NONE;
@@ -549,6 +564,11 @@ Command frontend_update() {
                 return NONE;
             }
 
+            if (!code_loaded) {
+                show_error("No code loaded! use load <filename> to load code");
+                return NONE;
+            }
+
             char* end_ptr = NULL;
             unsigned long break_line = strtol(last_command+7, &end_ptr, 10);
 
@@ -604,6 +624,11 @@ Command frontend_update() {
 
         } else if (last_command_len == 4 && !strcmp("$run", last_command)) {
 
+            if (!code_loaded) {
+                show_error("No code loaded! use load <filename> to load code");
+                return NONE;
+            }
+
             if (run_lock) {
                 show_error("Already running, Press F6 or type \"stop\" to stop!");
                 return NONE;
@@ -619,6 +644,10 @@ Command frontend_update() {
             return RUN;
 
         } else if (last_command_len == 5 && !strcmp("$step", last_command)) {
+            if (!code_loaded) {
+                show_error("No code loaded! use load <filename> to load code");
+                return NONE;
+            }
             if (run_lock) {
                 show_error("Command invalid while running!");
                 return NONE;
@@ -626,6 +655,10 @@ Command frontend_update() {
             return STEP;
 
         } else if (last_command_len == 6 && !strcmp("$reset", last_command)) {
+            if (!code_loaded) {
+                show_error("No code loaded! use load <filename> to load code");
+                return NONE;
+            }
             if (run_lock) {
                 show_error("Command invalid while running!");
                 return NONE;
@@ -648,7 +681,16 @@ Command frontend_update() {
             return EXIT;
 
         } else if (last_command_len == 5 && !strcmp("$stop", last_command)) {
-            return STOP;
+            if (!code_loaded) {
+                show_error("No code loaded! use load <filename> to load code");
+                return NONE;
+            }
+            if (run_lock) {
+                showing_error = false;
+                return STOP;
+            }
+            show_error("Nothing is running!");
+            return NONE;
 
         } else {
             show_error("Invalid command");

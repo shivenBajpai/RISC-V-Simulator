@@ -1,17 +1,21 @@
 todos:
 
+Signed unsigned seems fucked up
+that stack line issue
+need to clear stack whens stepping out of last line
+
+add PC Jump bounds checking
+what happens when commands are run without a loaded program
+
+commenting
+dead code analysis
+
 add to report:
 test section
 flowchart
 
-Signed unsigned seems fucked up
-that stack line issue
-add UI usage instructions
-add PC Jump bounds checking
-breakpoint before or after instruction
-what happens when commands are run without a loaded program
-report
-dead code analysis
+
+
 
 Aug 1: Func signature syntax
 
