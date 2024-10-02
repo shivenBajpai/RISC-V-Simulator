@@ -62,7 +62,7 @@ int main(int* argc, char** argv) {
 		}
     }
 
-	reset_backend();
+	reset_backend(true);
 
 	init_frontend();
 	set_frontend_register_pointer(get_register_pointer());
@@ -112,7 +112,7 @@ int main(int* argc, char** argv) {
 
 				// debug_print_label_index(index_of_labels);
 
-				reset_backend();
+				reset_backend(true);
 				reset_frontend(true);
 				memcpy(get_memory_pointer(), &hexcode[1], hexcode[0]*4); // hexcode[0] is implicitly the length in words. actual hexcode starts from hexcode[1]
 				memcpy(get_memory_pointer()+DATA_BASE, memory_template+DATA_BASE, MEMORY_SIZE-DATA_BASE);
@@ -140,7 +140,7 @@ int main(int* argc, char** argv) {
 				stack = new_stacktrace(index_of_labels);
 				st_push(stack, 0);
 
-				reset_backend();
+				reset_backend(false);
 				reset_frontend(false);
 
 				set_stack_pointer(stack);

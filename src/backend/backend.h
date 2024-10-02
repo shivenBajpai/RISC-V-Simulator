@@ -14,7 +14,7 @@ int load(uint8_t* bytes, size_t n);
 int step();
 int run();
 
-void reset_backend();
+void reset_backend(bool hard);
 void set_stacktrace_pointer(stacktrace* stacktrace);
 uint64_t* get_register_pointer();
 uint64_t* get_pc_pointer();

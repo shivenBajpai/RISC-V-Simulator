@@ -237,7 +237,7 @@ void new_write_code(int x, int y, int h, int w) {
     for (int i=0; i<lines_of_code; i++) {
         print_y = code_v_offsets[i]-code_scroll;
         if (print_y >= 0 && print_y < num_lines) {
-            mvprintw(y+2+print_y, x+5, "% 5d %04x: %.*s ", (i), (i)*4, inst_len, code[i]);
+            mvprintw(y+2+print_y, x+5, "% 5d %04x: %.*s ", (i+1), (i)*4, inst_len, code[i]);
             mvprintw(y+2+print_y, x+w-2-12, "%08X %s ", hexcode[i], "  ");
         }
     }
@@ -247,7 +247,7 @@ void new_write_code(int x, int y, int h, int w) {
     if (print_y>=0 && print_y<num_lines) {
         size_t size = sizeof(char) * (w+1);
         char* line = malloc(size);
-        snprintf(line, w+1, "% 5d %04x: %.*s", pos, (pos)*4, inst_len, code[pos]);
+        snprintf(line, w+1, "% 5d %04x: %.*s", pos+1, (pos)*4, inst_len, code[pos]);
         int space_count = w-strlen(line)-19;
 
         attron(COLOR_PAIR(C_RUNNING));
@@ -557,6 +557,7 @@ Command frontend_update() {
                 return NONE;
             }
 
+            break_line -= 1;
             if (break_line < 0 | break_line > lines_of_code-1) {
                 show_error("Invalid Line number");
                 return NONE;

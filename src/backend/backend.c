@@ -100,11 +100,13 @@ vec* get_breakpoints_pointer() {return breakpoints;}
 uint8_t* get_memory_pointer() {return &memory[0];}
 void set_stacktrace_pointer(stacktrace* stacktrace) {stack = stacktrace;}
 
-void reset_backend() {
+void reset_backend(bool hard) {
     memset(registers, 0, sizeof(registers));
     memset(memory, 0, sizeof(memory));
-    if (breakpoints) free_managed_array(breakpoints);
-    breakpoints = new_managed_array();
+    if (hard) {
+        if (breakpoints) free_managed_array(breakpoints);
+        breakpoints = new_managed_array();
+    }
     pc = 0;
 }
 
