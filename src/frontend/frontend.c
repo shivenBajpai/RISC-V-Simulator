@@ -65,7 +65,6 @@ void reset_frontend(bool hard) {
     if (hard) code_scroll = 0;
     last_reg_write = -2;
     if (!showing_mem) aux_scroll = 0;
-    if (hard) vec_clear(breakpoints); // TODO: Remove
 }
 
 void release_run_lock() {
@@ -190,8 +189,8 @@ void write_regs(int x, int y, int h, int w) {
     attroff(COLOR_PAIR(C_OFF_NORMAL));
 }
 
-// Render the code pane //TODO: Rename this
-void new_write_code(int x, int y, int h, int w) {
+// Render the code pane
+void write_code(int x, int y, int h, int w) {
 
     if (!code) return;
     
@@ -367,7 +366,7 @@ void draw() {
     write_regs(register_root_x, register_root_y, register_h, register_w);
     if (showing_mem) write_memory(aux_root_x, aux_root_y, aux_w, aux_h);
     else write_stack(aux_root_x, aux_root_y, aux_w, aux_h);
-    new_write_code(code_root_x, code_root_y, code_h, code_w);
+    write_code(code_root_x, code_root_y, code_h, code_w);
 
     // Render input line at the bottom
     if (showing_error) attron(COLOR_PAIR(C_ERROR));
@@ -415,7 +414,6 @@ Command frontend_update() {
     }
 
     // Here follow a long series of input matching if statements and corresponding safety checks
-    // TODO: Convert this to a switch case
 
     if (input == ERR) {
         return NONE;
