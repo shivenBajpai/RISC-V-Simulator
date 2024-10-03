@@ -6,6 +6,7 @@
 #include <stdbool.h>
 #include "../backend/stacktrace.h"
 
+// Messages exchanged between frontend and other sections of the application
 typedef enum {
     LOAD,
     RUN,
@@ -17,19 +18,6 @@ typedef enum {
     RESET,
     NONE
 } Command;
-
-typedef struct DisplayData {
-    uint64_t* regs; 
-    uint64_t* pc; 
-    uint8_t* memory; 
-    size_t n_lines; // parse
-    char** text_code; // todo
-    char** hex_code; // todo
-    label_index* label_data; 
-    int* active_line; // from pc
-    int* breakpoints;
-    bool* running_flag;
-} DisplayData;
 
 int init_frontend();
 void destroy_frontend();

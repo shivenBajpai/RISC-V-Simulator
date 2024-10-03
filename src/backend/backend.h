@@ -7,10 +7,6 @@
 #define DATA_BASE 0x10000
 #define MEMORY_SIZE 0x50000 + 1 // Also used as end from which stack grows downward
 
-//int core_dump(Memory* memory, FILE* text, FILE* data, FILE* stack);
-int core_dump(FILE* text);
-
-int load(uint8_t* bytes, size_t n);
 int step();
 int run();
 

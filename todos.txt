@@ -34,3 +34,7 @@ But thats a lot of work.
 Aug 3: Cache implementation
 
 Aug 4: Memory usage indicator
+
+Aug 5: current file name
+
+Aug 6: Technical debt removal

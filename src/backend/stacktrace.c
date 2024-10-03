@@ -3,9 +3,7 @@
 
 void st_push(stacktrace* st, int line) {
 
-    // printf("Attempted push %d\n", line);
     int label = get_section_label(st->index, line);
-    // printf("Got %d\n", label);
 
     append(st->stack, line);
     append(st->label_indices, label);

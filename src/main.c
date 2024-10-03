@@ -13,10 +13,11 @@
 static stacktrace* stack = NULL;
 static label_index* index_of_labels = NULL;
 static uint32_t* hexcode = NULL;
-static Command command = NONE;
 static uint8_t *memory_template = NULL;
 static char* cleaned_code = NULL;
 
+
+// Ensures memory is freed and ncurses mode is exited properly, regardless of exit cause`
 void exit_handler() {
 
 	if (hexcode) free(hexcode);
@@ -29,9 +30,12 @@ void exit_handler() {
 
 int main(int* argc, char** argv) {
 	
+	Command command = NONE;
+	
 	atexit(*(exit_handler));
-	input_file = malloc(sizeof(char) * 256);
+	input_file = malloc(sizeof(char) * 256); // Allocate memory for the input file_name
 
+	// CLI Switches
     while(*(++argv) != NULL) {
             
 		if (strcmp(*argv,"--smc")==0 || strcmp(*argv,"--self-modifying-code")==0) {
@@ -39,6 +43,7 @@ int main(int* argc, char** argv) {
 		}
     }
 
+	// Initialization
 	reset_backend(true);
 
 	init_frontend();
@@ -49,6 +54,8 @@ int main(int* argc, char** argv) {
 
 	memory_template = malloc(sizeof(uint8_t)* MEMORY_SIZE);
 
+	// Main loop
+	// Polls for updates from the frontend, and processes them
 	while (1) {
 		switch (frontend_update()) {
 			case LOAD:
@@ -75,8 +82,10 @@ int main(int* argc, char** argv) {
 				uint8_t* new_memory_template = malloc(sizeof(uint8_t)* MEMORY_SIZE);
 				memset(new_memory_template, 0, sizeof(uint8_t)*MEMORY_SIZE);
 
-				hexcode = assembler_main(fp, new_cleaned_code, new_index_of_labels, new_memory_template); // Need to add Data segment capabiltiy, and also need to add Breakpoint parsing
+				hexcode = assembler_main(fp, new_cleaned_code, new_index_of_labels, new_memory_template);
 				fclose(fp);
+
+				// If assembler failed, free temporary memory and abort
 				if (!hexcode) {
 					free(new_cleaned_code);
 					free(new_index_of_labels);
@@ -84,6 +93,7 @@ int main(int* argc, char** argv) {
 					break;
 				}
 				
+				// Else, update state
 				if (index_of_labels) free_label_index(index_of_labels);
 				index_of_labels = new_index_of_labels;
 
@@ -93,20 +103,21 @@ int main(int* argc, char** argv) {
 				if (memory_template) free(memory_template);
 				memory_template = new_memory_template;
 
-				if (get_section_label(index_of_labels, 0) == -1) add_label(index_of_labels, "main", 0);
+				if (get_section_label(index_of_labels, 0) == -1) add_label(index_of_labels, "main", 0); // Adding main to stack if there is no label at the start
 				index_dedup(index_of_labels);
 				if (stack) st_free(stack);
 				stack = new_stacktrace(index_of_labels);
 				st_push(stack, 0);
 
-				// debug_print_label_index(index_of_labels);
-
 				reset_backend(true);
 				reset_frontend(true);
+
+				// Write data segment and instructions into memory
 				memcpy(get_memory_pointer(), &hexcode[1], hexcode[0]*4); // hexcode[0] is implicitly the length in words. actual hexcode starts from hexcode[1]
 				memcpy(get_memory_pointer()+DATA_BASE, memory_template+DATA_BASE, MEMORY_SIZE-DATA_BASE);
 
-				update_code(cleaned_code, hexcode[0]); //  Need to update breakpoints as per ebreak instructions
+				// Give frontend new pointers to data in backend
+				update_code(cleaned_code, hexcode[0]);
 				set_stack_pointer(stack);
 				set_stacktrace_pointer(stack);
 				set_breakpoints_pointer(get_breakpoints_pointer());
@@ -124,6 +135,7 @@ int main(int* argc, char** argv) {
 				break;
 
 			case RESET:
+				// Reset stack
 				if (stack) st_free(stack);
 				stack = new_stacktrace(index_of_labels);
 				st_push(stack, 0);
@@ -131,9 +143,12 @@ int main(int* argc, char** argv) {
 				reset_backend(false);
 				reset_frontend(false);
 
+				// Give frontend new pointers to data in backend
 				set_stack_pointer(stack);
 				set_stacktrace_pointer(stack);
 				set_breakpoints_pointer(get_breakpoints_pointer());
+				
+				// Reset data segment and instructions in memory
 				memcpy(get_memory_pointer(), &hexcode[1], hexcode[0]*4);
 				memcpy(get_memory_pointer()+DATA_BASE, memory_template+DATA_BASE, MEMORY_SIZE-DATA_BASE);
 				set_hexcode_pointer((uint32_t*) &hexcode[1]);

@@ -10,7 +10,7 @@
 #include "../frontend/frontend.h"
 #include "backend.h"
 
-# define RUN_DELAY 125
+# define RUN_DELAY 200
 
 enum Opcode {
     R_Type      = 0b0110011,
@@ -23,7 +23,7 @@ enum Opcode {
     LUI         = 0b0110111,
     AUIPC       = 0b0010111,
     EBREAK      = 0b1110011,
-    NOP         = 0, // Made up marker
+    NOP         = 0, // Made up marker, Used to identify end of code.
 };
 
 enum Instruction_Constants{
@@ -78,26 +78,14 @@ static stacktrace *stack = NULL;
 static uint8_t memory[MEMORY_SIZE] = {0};
 extern bool text_write_enabled;
 
-int core_dump(FILE* text) { 
-    if (fwrite(memory, sizeof(uint8_t), MEMORY_SIZE, text) != MEMORY_SIZE) printf("Core Dump Failed");
-    return 0;
-}
-
-int load(uint8_t* bytes, size_t n) {
-    if (n > MEMORY_SIZE) {
-        cause = "Initialization data exceeds memory size";
-        exit(1);
-    }
-
-    memcpy(memory, bytes, n);
-}
-
+// Utility functions used to link frontend to backend
 uint64_t* get_register_pointer() {return &registers[0];}
 uint64_t* get_pc_pointer() {return &pc;}
 vec* get_breakpoints_pointer() {return breakpoints;}
 uint8_t* get_memory_pointer() {return &memory[0];}
 void set_stacktrace_pointer(stacktrace* stacktrace) {stack = stacktrace;}
 
+// Resets memeory and registers. The hard parameters is true if this is a new file load and false if it is just a reset
 void reset_backend(bool hard) {
     memset(registers, 0, sizeof(registers));
     memset(memory, 0, sizeof(memory));
@@ -108,13 +96,14 @@ void reset_backend(bool hard) {
     pc = 0;
 }
 
+// Implementation of the STEP command
 int step() {
-    // Run code 
     if (pc+3 >= DATA_BASE) {
         show_error("Segmentation Fault! PC ran into data segment");
         return 3;
     }
 
+    // Deconstruct instruction
     uint32_t instruction = (memory[pc+3] << 24) | (memory[pc+2] << 16) | (memory[pc+1] << 8) |  memory[pc];
     uint32_t funct_op = 0;
     uint64_t imm = 0;
@@ -124,6 +113,7 @@ int step() {
 
     uint64_t data;
 
+    // Match instruction type, extract immediate and funct bits appropriately
     switch (instruction & 0x7F) {
         case R_Type:
             funct_op = instruction & 0xFE00707F;
@@ -177,8 +167,10 @@ int step() {
             funct_op = instruction & 0x0000007F;
     }
     
+    // Update the line number on the stack
     st_update(stack, (pc/4)+1);
 
+    // Execute the instruction. All registers are unsigned by default. Only signed comparisons and offsets have to be type casted  
     switch (funct_op) {
         case add:
             *rd = *rs1 + *rs2;
@@ -419,18 +411,18 @@ int step() {
             break;
     }
 
-    pc += 4;
-    registers[0] = 0;
+    pc += 4; // Increment the PC
+    registers[0] = 0; // Make sure x0 doesn't change
 
-    if (memory[pc] == ebreak) {
+    if (memory[pc] == ebreak) { // stop if next instruction is a breakpoint
         return 2;
     }
 
-    if (memory[pc] == NOP) {
+    if (memory[pc] == NOP) { // assume end of code if NOP is encountered.
         st_clear(stack);
     }
 
-    for (int i=0; i<breakpoints->len; i++) {
+    for (int i=0; i<breakpoints->len; i++) { // stop if next instruction is a breakpoint
         if (pc/4==breakpoints->values[i]) {
             return 2;
         }
@@ -449,13 +441,15 @@ int run(Command (*callback)(void)) {
     int result;
 
     while (1) {
+        // Keep updating frontend while we wait out the delay between instructions
         do{
             if ((*callback)() == STOP) return 0;
             ftime(&time);
         } while (time.time*1000 + time.millitm < next_tick);
         next_tick = time.time*1000 + time.millitm + RUN_DELAY;
 
+        // Call step here
         if ((result = step())) return result;
-        if ((*callback)() == STOP) return 0;
+        // if ((*callback)() == STOP) return 0;
     }
 }
