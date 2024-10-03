@@ -8,6 +8,7 @@
 #include "../globals.h"
 #include "../backend/stacktrace.h"
 
+// Related to terminal color configuration
 #define C_NORMAL 0
 #define C_OFF_NORMAL 1
 #define C_ERROR 2
@@ -18,50 +19,53 @@
 
 #define COLOR_GRAY COLOR_CYAN
 
-static int rows=0, columns=0;
+// All common state of the frontend is accessible to all functions.
+static int rows=0, columns=0;           // Window information
 static int cursor=0;
-static int input=ERR;
-static int code_scroll=0;
+static int input=ERR;                   // Stores last input
+static int code_scroll=0;               // Scroll related information
 static int aux_scroll=0;
 static int lines_of_code=0;
-static char* last_command = NULL;;
-static char* input_buffer = NULL;;
+static char* last_command = NULL;       // Relating to the input line at the bottom
+static char* input_buffer = NULL;       
 static size_t input_buffer_len;
-static bool initialized = false;
+static size_t input_buffer_size;
+static bool initialized = false;        // State flags
 static bool showing_error = false;
 static bool showing_mem = false;
 static bool color_mode = false;
 static bool run_lock = false;
 static bool showing_run_lock = false;
 static bool code_loaded = false;
-static MEVENT mouse;
+static MEVENT mouse;                    // Stores last mouse event
+static uint64_t last_reg_write = -2;    // Last register written to
+static uint64_t memory_size = 0;        // Size of memory (for scrolling)
 
-static uint64_t last_reg_write = -2;
-static uint64_t memory_size = 0;
 static uint64_t* regs = NULL;
 static uint64_t* pc = NULL;
 static uint8_t* memory = NULL;
-static int* code_v_offsets = NULL;
+static int* code_v_offsets = NULL;      // Stores a pre-calculated list of vertical offsets of each line of code.
 static char** code = NULL;
 static uint32_t* hexcode = NULL;
 static vec* breakpoints = NULL;
 static label_index* labels = NULL;
 static stacktrace* stack = NULL;
 
+// Utility functions to link frontend to backend
 void set_frontend_register_pointer(uint64_t* regs_pointer) {regs = regs_pointer;}
 void set_frontend_pc_pointer(uint64_t* pc_pointer) {pc = pc_pointer;}
 void set_frontend_memory_pointer(uint8_t* memory_pointer, uint64_t size_of_memory) {memory = memory_pointer; memory_size = size_of_memory;}
 void set_breakpoints_pointer(vec* breakpoints_pointer) {breakpoints = breakpoints_pointer;}
 void set_stack_pointer(stacktrace* stacktrace) {stack = stacktrace;}
 void set_hexcode_pointer(uint32_t* hexcode_pointer) {hexcode = hexcode_pointer;}
-void set_run_lock() {run_lock = true; showing_run_lock = true;}
+void set_run_lock() {run_lock = true; showing_run_lock = true;} // Locks user out of certain actions
 void set_reg_write(uint64_t reg) {last_reg_write = reg;}
 
 void reset_frontend(bool hard) {
     if (hard) code_scroll = 0;
     last_reg_write = -2;
     if (!showing_mem) aux_scroll = 0;
-    if (hard) vec_clear(breakpoints);
+    if (hard) vec_clear(breakpoints); // TODO: Remove
 }
 
 void release_run_lock() {
@@ -75,7 +79,9 @@ void release_run_lock() {
     }
 }
 
-// Must always be called after setting code
+// Must always be called after setting code.
+// Tells the frontend where the labels are stored
+// Also calculates the vertical offsets for lines of code
 void set_labels_pointer(label_index* index) {
     labels = index;
     int offset = 0;
@@ -99,6 +105,10 @@ void set_labels_pointer(label_index* index) {
     }
 }
 
+// Makes a copy of the cleaned-code, 
+// changing \n to \0 thus making it a contiguous array of strings 
+// also creates a list of pointers to each string's start 
+// this helps to speed up rendering
 void update_code(char* code_pointer, uint64_t n) {
     if (code) free(code);
     
@@ -119,6 +129,7 @@ void update_code(char* code_pointer, uint64_t n) {
     }
 }
 
+// Utility function to draw boxes outside panes
 void draw_outline_rect(int x, int y, int h, int w) {
     mvaddch(y,x,'+');
     for (int i=2; i<w; i++) addch('-');
@@ -135,6 +146,7 @@ void draw_outline_rect(int x, int y, int h, int w) {
     }
 }
 
+// Pad a string with space to be centered. If string does not fit then skip writing.
 int write_centered(int x, int y, int w, char* string) {
     int len = strlen(string);
     if(len>w) return 1;
@@ -145,6 +157,7 @@ int write_centered(int x, int y, int w, char* string) {
     return 0;
 }
 
+// Render the registers pane
 void write_regs(int x, int y, int h, int w) {
     if(w<26) return;
 
@@ -177,6 +190,7 @@ void write_regs(int x, int y, int h, int w) {
     attroff(COLOR_PAIR(C_OFF_NORMAL));
 }
 
+// Render the code pane //TODO: Rename this
 void new_write_code(int x, int y, int h, int w) {
 
     if (!code) return;
@@ -225,8 +239,10 @@ void new_write_code(int x, int y, int h, int w) {
     }
 }
 
+// Initializes frontend
 int init_frontend() {
 
+    // Configure ncurses
     initscr();
     raw();
     keypad(stdscr, TRUE);
@@ -235,6 +251,7 @@ int init_frontend() {
     mousemask(ALL_MOUSE_EVENTS, NULL);
     mouse.x = 0;
 
+    // Configure colors
     if (has_colors()) {
         color_mode = true;
         start_color();
@@ -248,8 +265,11 @@ int init_frontend() {
         init_pair(C_OFF_NORMAL_HIGHLIGHT, COLOR_WHITE, COLOR_YELLOW);
     }
 
-    input_buffer = malloc((getmaxx(stdscr)-1)*sizeof(char));
-    last_command = malloc((getmaxx(stdscr)-1)*sizeof(char));
+
+    // Allocate buffers
+    input_buffer_size = (getmaxx(stdscr)-1);
+    input_buffer = malloc(input_buffer_size*sizeof(char));
+    last_command = malloc(input_buffer_size*sizeof(char));
 
     if(!input_buffer || !last_command) return 1;
 
@@ -261,11 +281,13 @@ int init_frontend() {
     return 0;
 }
 
+// Render the memory pane
 void write_memory(int x, int y, int w, int h) {
-    int padding = w-6-3-11;
+    int padding = w-6-3-11; // Calculate padding to center the text
 
     if (padding<2) return;
 
+    // Scroll related calculations
     int last_line = aux_scroll+(h-5);
     int offset=0;
     bool color_toggle = false;
@@ -273,6 +295,7 @@ void write_memory(int x, int y, int w, int h) {
 
     for (int i=aux_scroll; i<=last_line; i++) {
 
+        // Alternating colors
         if (color_toggle) {
             attron(COLOR_PAIR(C_OFF_NORMAL));
         } else {
@@ -281,6 +304,7 @@ void write_memory(int x, int y, int w, int h) {
 
         color_toggle = !color_toggle;
 
+        // Write the actual content
         mvprintw(y+2+offset, x+2+padding/4, "0x%08X %*s 0x%02x", i, padding/2, "", memory[i]);
         offset++;
     }
@@ -288,6 +312,7 @@ void write_memory(int x, int y, int w, int h) {
     attroff(COLOR_PAIR(C_OFF_NORMAL));
 }
 
+// Render the stack pane
 void write_stack(int x, int y, int w, int h) {
     
     if (!stack) return;
@@ -315,14 +340,17 @@ void write_stack(int x, int y, int w, int h) {
 
 }
 
+// Draws a frame and renders it
 void draw() {
-    getmaxyx(stdscr, rows, columns);
+    getmaxyx(stdscr, rows, columns); // Get window size
 
+    // Calculate the position and size of everything based on window size
     int input_root_x = 0, input_root_y = rows-4, input_h=4, input_w=columns;
     int register_root_x = 0.75*columns, register_root_y = 0, register_w=columns-register_root_x, register_h=input_root_y+1;
     int aux_root_x = 0.5*columns, aux_root_y = 0, aux_w=register_root_x-aux_root_x+1, aux_h=input_root_y+1;
     int code_root_x = 0, code_root_y = 0, code_w=aux_root_x+1, code_h=input_root_y+1;
     
+    // Drawing the outline and title of the panes
     erase();
     draw_outline_rect(0,0,rows,columns);
     draw_outline_rect(input_root_x, input_root_y, input_h, input_w);
@@ -334,12 +362,14 @@ void draw() {
     write_centered(aux_root_x, aux_root_y, aux_w, showing_mem?"MEMORY":"STACK");
     write_centered(code_root_x, code_root_y, code_w, "CODE");
 
+    // Render the actual content
     mvprintw(0,0,"PC: %08lX", *pc);
     write_regs(register_root_x, register_root_y, register_h, register_w);
     if (showing_mem) write_memory(aux_root_x, aux_root_y, aux_w, aux_h);
     else write_stack(aux_root_x, aux_root_y, aux_w, aux_h);
     new_write_code(code_root_x, code_root_y, code_h, code_w);
 
+    // Render input line at the bottom
     if (showing_error) attron(COLOR_PAIR(C_ERROR));
     else attron(COLOR_PAIR(C_TERMINAL));
 
@@ -356,6 +386,7 @@ void destroy_frontend() {
     endwin();
 }
 
+// Utility function to show errors
 void show_error(char* format, ...) {
     va_list args;
     va_start(args, format);
@@ -371,14 +402,26 @@ void show_error(char* format, ...) {
     va_end(args);
 }
 
+// Top level function called by the main loop that handles input and calls other functions as necessary.
+// Calling this function regularly is sufficient and necessary to keep the UI responsive.
 Command frontend_update() {	
     draw();
     input = getch();
+    
+    if (input_buffer_size < (getmaxx(stdscr)-1)) {
+        input_buffer_size = (getmaxx(stdscr)-1);
+        input_buffer = realloc(input_buffer, input_buffer_size*sizeof(char));
+        last_command = realloc(last_command, input_buffer_size*sizeof(char));
+    }
+
+    // Here follow a long series of input matching if statements and corresponding safety checks
+    // TODO: Convert this to a switch case
 
     if (input == ERR) {
         return NONE;
     }
 
+    // Scrolling
     if (input == KEY_MOUSE) {
         getmouse(&mouse);
 
@@ -401,6 +444,46 @@ Command frontend_update() {
         return NONE;
     }
 
+
+    if (input == KEY_UP) {
+        if (mouse.x<columns/2) code_scroll = code_scroll==0?code_scroll:code_scroll-1;
+        else if (mouse.x<3*columns/4) {
+            if (showing_mem) aux_scroll = aux_scroll==0?aux_scroll:aux_scroll-1;
+            else aux_scroll = aux_scroll==0?aux_scroll:aux_scroll-1;
+        }
+
+        return NONE;
+    }
+
+    if (input == KEY_DOWN) {
+        if (mouse.x<columns/2) code_scroll = code_scroll<=code_v_offsets[lines_of_code-1]-5?code_scroll+1:code_scroll;
+        else if (mouse.x<3*columns/4) {
+            if (showing_mem) aux_scroll = aux_scroll<=(memory_size-5)?aux_scroll+1:aux_scroll;
+            else aux_scroll = aux_scroll<=(stack->len-5)?aux_scroll+1:aux_scroll;
+        }
+
+        return NONE;
+    }
+
+    // Keyboard input. Clear error if being shown
+    if (showing_error) {
+        showing_run_lock = false;
+        showing_error = false;
+        curs_set(1);
+        input_buffer[0] = '$';
+        input_buffer[1] = '\0';
+        input_buffer_len = 1;
+
+        if (input>31 && input<127 && input_buffer_len<columns-3) {
+
+            input_buffer[input_buffer_len] = input;
+            input_buffer[input_buffer_len+1] = '\0';
+            input_buffer_len += 1;
+        }
+
+        if (input < KEY_F(0) || input > KEY_F(12)) return NONE;
+    }
+
     if (input == KEY_F(1)) { 
         if (run_lock) {
             show_error("Stopping execution, press F1 again to exit");
@@ -415,27 +498,10 @@ Command frontend_update() {
             return NONE;
         }
         if (run_lock) {
-            showing_error = false;
             return STOP;
         }
         show_error("Nothing is running!");
         return NONE;
-    }
-
-    if (input == KEY_UP) {
-        if (mouse.x<columns/2) code_scroll = code_scroll==0?code_scroll:code_scroll-1;
-        else if (mouse.x<3*columns/4) {
-            if (showing_mem) aux_scroll = aux_scroll==0?aux_scroll:aux_scroll-1;
-            else aux_scroll = aux_scroll==0?aux_scroll:aux_scroll-1;
-        }
-    }
-
-    if (input == KEY_DOWN) {
-        if (mouse.x<columns/2) code_scroll = code_scroll<=code_v_offsets[lines_of_code-1]-5?code_scroll+1:code_scroll;
-        else if (mouse.x<3*columns/4) {
-            if (showing_mem) aux_scroll = aux_scroll<=(memory_size-5)?aux_scroll+1:aux_scroll;
-            else aux_scroll = aux_scroll<=(stack->len-5)?aux_scroll+1:aux_scroll;
-        }
     }
 
     if (input == KEY_F(8)) {
@@ -469,24 +535,6 @@ Command frontend_update() {
         set_run_lock();
         show_error("Running! Press F6 or type \"stop\" to stop execution");
         return RUN;
-    }
-
-    if (showing_error) {
-        showing_run_lock = false;
-        showing_error = false;
-        curs_set(1);
-        input_buffer[0] = '$';
-        input_buffer[1] = '\0';
-        input_buffer_len = 1;
-
-        if (input>31 && input<127 && input_buffer_len<columns-3) {
-
-            input_buffer[input_buffer_len] = input;
-            input_buffer[input_buffer_len+1] = '\0';
-            input_buffer_len += 1;
-        }
-
-        return NONE;
     }
 
     if ((input == KEY_BACKSPACE) && input_buffer_len>1) {
