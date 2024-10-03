@@ -44,7 +44,7 @@
 		
 		\item Most errors are gracefully handled and shown within the TUI without exiting the program, so the user can recover from any mistakes and continue.
 		
-		\item There is an extra command beyond the requirements of the project called \verb|reset| that resets the simulator to its state when the file was initially loaded. This is useful because the only other way to reset would be to reload the file, which would override the set breakpoints. Using \verb|reset| means you do not lose any breakpoints, and also re-compilation is avoided.
+		\item There is an extra command beyond the requirements of the project called \verb|reset| that resets the simulator to its state when the file was initially loaded. This is useful because the only other way to reset would be to reload the file, which would override the set breakpoints. Using \verb|reset| means you do not lose any breakpoints, and re-compilation is also avoided.
 		
 		\item The program checks for Invalid memory access by the RISC-V instructions and ceases execution when such an instruction is encountered. Modifying the text section is normally not allowed, however if an experimental flag \verb|--self-modifying-code| is set then the simulator allows the program to write to the text section, thus allowing it to modify itself. Note that since the feature is experimental, the dissassembled representation is not guaranteed to be correct if this flag is specified, as that is read from the input file rather than being actual dissassembled code. The behaviour of the simulator in reponse to invalid instructions is also not defined.
 		
@@ -59,7 +59,7 @@
 
 	\subsection{Breaking down the problem}
 
-	The simulator has four main parts. The assembler that is called when a file is loaded, The backend implementation that does the actual simulation, The Frontend that displays information and takes input from the user and the control code that serves coordinates these three and handles errors.
+	The simulator has four main parts. The assembler that is called when a file is loaded, The backend implementation that does the actual simulation, The Frontend that displays information and takes input from the user and the control code that coordinates these three and handles errors.
 
 	The overall program flow goes as follows,
 
@@ -75,7 +75,7 @@
 
 	\subsection{Application is not responding!}
 
-	Before we can talk about the technical parts in more detail, we need to talk about something much more important. The UI here's needs to remain responsive while the simulator is running. This means our program needs to be structured in a way such that it can asynchronously run the frontend and the backend. One such way to do this would be to make two threads. One for the frontend and the another for everything else. However in this project for the sake of simplicity, I have used a single thread and manually implemented a form of polling to keep the UI responsive.
+	Before we can talk about the technical parts in more detail, we need to talk about something much more important. The UI here needs to remain responsive while the simulator is running. This means our program needs to be structured in a way such that it can asynchronously run the frontend and the backend. One such way to do this would be to make two threads. One for the frontend and the another for everything else. However in this project for the sake of simplicity, I have used a single thread and manually implemented a form of polling to keep the UI responsive.
 
 	\section{Adapting the assembler}
 
@@ -84,29 +84,27 @@
 	\begin{enumerate}
 		\item The main function needs to be adapted to take in buffers as arguments, instead of reading file names from command line arguments and opening them itself.
 		\item Similarly, all other functions will need to be adapted to use buffers instead of file pointers.
-		\item The main function will also need to be given pointers where it can store objects with information such as label positions which was previously not required once the assembling process was done
+		\item The main function will also need to be given pointers to where it can store objects with information such as label positions which was previously not required once the assembling process was done
 		\item An extra pre-processing step is required to read in the .data segment, and only pass on the .text segment to original first pass of the assembler. All error reporting needs to be updated to account for the line number offset due to the data segment. If no label like .text or .data is encountered, this step does nothing
-		\item All error reporting needs to be changed to use the \verb|show_error()| defined in the frontend, instead of printing to stdout.
+		\item All error reporting needs to be changed to use the \verb|show_error()| funtion defined in the frontend, instead of printing to stdout.
 	\end{enumerate}
 
 	Other than this, I updated the custom types \verb|struct label_index| and \verb|struct vec| to have some more utility functions. I also changed the type of the values stored in \verb|struct vec| to be \verb|uint64_t| instead of \verb|int| so that I can use it to store memory locations without any concerns of overflow.
 
 	\section{Writing the Backend}
 	
-	The simulator itself is relatively straightforward. It just has to load an instruction, decode it, and execute it. The validity of instructions is already guaranteed by the compiler (provided the \verb|--self-modifying-code| flag is not set, but since it is just an experimental flag I decided not to implement instruction validation for it.). Then we increment the PC and done! 
+	The simulator itself is relatively straightforward. It just has to load an instruction, decode it, and execute it. Then we increment the PC and done! The validity of instructions is already guaranteed by the compiler (provided the \verb|--self-modifying-code| flag is not set, but since it is just an experimental flag I decided not to implement instruction validation for it.)
 	
-	We can define the function that implements this process as the \verb|step()| and use it for the \verb|step| command. The \verb|run| command then can be implemented by simply calling \verb|step()| over and over again. Make an array to serve as the simulated memory and registers. Add a few conditions to test for breakpoints, invalid memory access and we're done.
+	We can define the function that implements this process as the \verb|step()| and use it for the \verb|step| command. The \verb|run| command then can be implemented by simply calling \verb|step()| over and over again. Make an array to serve as the simulated memory and registers. Add a few conditions to test for breakpoints, invalid memory access, and PC being moved outside of the text segment and we're done.
 
-	The \verb|run()| function runs intructions only at a pace of about 5 per second. This is done using a timer and components from the builtin \verb|ftime| library. While waiting or the delay, the program keeps updating the frontend to ensure the application remains responsive. It checks between every frame if it is time to run the next instruction or not.
+	The \verb|run()| function runs intructions only at a pace of about 5 per second. This is done using a timer and components from the builtin \verb|ftime| library. While waiting for the delay, the program keeps updating the frontend to ensure the application remains responsive. It checks between every frame if it is time to run the next instruction yet or not.
 
 	The implementation of the individual instructions and its parsing is done via a pair of large switch-case blocks. The details are trivial and I won't discuss it here.
 
-	To maintain a stacktrace, we create another \verb|struct vec|. At the start of the program, the location of the first instruction is pushed onto this stack.
-	Every time a jump instruction is taken, the address of that instruction is pushed onto this stack and every time a \verb|jalr| instruction is encountered, an address is popped off of the stack. Of course, this only works when jal and jalr are only used according to the convention and only for function calls.
+	To maintain a stacktrace, we create another \verb|struct vec|. At the start of the program, the location of the first instruction is pushed onto this stack. Whenever an instruction is executed, the line number of the last entry is updated.
+	Every time a jump instruction is taken, a new entry is pushed onto this stack and every time a \verb|jalr| instruction is encountered, an entry is popped off of the stack. Of course, this only works when jal and jalr are only used according to the convention and only for function calls.
 
-	Implementing breakpoints is also trivial, We just maintain a list of all breakpoint positions. On every instructino execution, we check if the next instruction has a breakpoint on it. If it does, then we stop the execution loop
-
-	Lastly, we add a few if conditions on instructions that perform jumps/branches or interact with memory to enforce Memory access rules and ensure that the PC is not moved out of bounds.
+	Implementing breakpoints is also trivial, We just maintain a list of all breakpoint positions. On every instructino execution, we check if the next instruction has a breakpoint on it. If it does, then we stop the execution loop.
 
 	\section{Loading in a file}
 
@@ -132,19 +130,17 @@
 
 	Since the frontend is not a part of the project requirements, I wont go into much detail on its implementation, But a brief description is as follows:
 
-	The frontend is made using the \verb|ncurses| terminal control library. There is a singular \verb|update()| function that is called regularly to take input and redraw the screen.
+	The frontend is made using the \verb|ncurses| terminal control library. The \verb|frontend_update()| is called regularly from the main loop to take input and redraw the screen.
 
 	Any command sent to the application is held by the frontend, as well as parsed and processed by the frontend itself, It is only passed to higher control code if it requires code execution outside the frontend (e.g the \verb|run| or \verb|break| commands). Commands such as \verb|mem| and \verb|regs| are handled by the frontend itself.
 
 	Any data that needs to be shown is read directly from the backend's copy of the same if possible. The top level control code is responsible for ensuring the pointers for the same are set correctly using a series of \verb|get_<>_pointer()| and \verb|set_<>_pointer()| functions exposed by both the frontend and the backend.
 
-	For the Stack pane, the name of nearest previous label to the line number present in the stack is used as the label when displaying the entry in the frontend.
-
-	The "cleaned code" and index of labels that is created as an output of assembly process is used for the display of code divided by section labels in the Code pane. The calculation for the position of each line after taking into account sectioning due to labels is slightly complicated and would be inefficient to repeat on every draw of the frame, so all the positions are calculated only once when a file is loaded in and then re-used on every draw.
+	The "cleaned code" and index of labels that is created as an output of assembly process is used for the display of code divided into sections by labels in the Code pane. The calculation for the position of each line after taking into account sectioning due to labels is slightly complicated and would be inefficient to repeat on every draw of the frame, so all the positions are calculated only once when a file is loaded in and then re-used on every draw.
 
 	\section{Testing}
 
-	For testing I used the sample cases given in the problem statement, along with a fibonacci calculation program, the program from GCD lab assignment and all testcases I had from my assembler. These are all available in the \verb|\test| directory
+	For testing I used the sample cases given in the problem statement, along with a fibonacci calculation program, the program from GCD lab assignment and all testcases I had from my assembler. These are all available in the \verb|\test| directory. Additionally I used the open source tool \verb|valgrind| to search for memory bugs, It was a huge timesaver.
 
 	\newpage
 	\appendix
@@ -195,10 +191,23 @@
 	\verb|exit|\\
 	Closes the simulator. Keyboard Shortcut: F1
 	
-	Always use the \verb|exit| command, trying to exit using Ctrl + C will cause problems as terminal may get misconfigured and text may not render properly. If this occurs, you have to either restart the terminal or run the \verb|reset| terminal command.
+	Always use the \verb|exit| command, trying to exit using Ctrl + C will cause problems as the terminal may get misconfigured and text may not render properly. If this occurs, you have to either restart the terminal or run the \verb|reset| terminal command.
 
 	You can scroll in the code, memory and stack pane pane.
 
+	\subsection{Ways that this simulator can be improved}
+
+	There are several ways in which this simulator can be significantly improved, some of them dont even require significant changes. These are changes that I would've made if I had more time:
+
+	\begin{itemize}
+		\item Adding something resembling debugging symbols so that the stacktrace can show the arguments of each function call, displayed in the correct type, would make the stack trace a lot more useful.
+		\item Adding pipelining to the simulator would be relatively simple. In code it would simply involve chopping up the step function according to the different stages and then ordering these stages in reverse order. Additionally some stalling/forwarding logic will be required.
+		\item An indicator could be added at the bottom of the memory pane to show the current Stack size and percentage of memory being used
+		\item ELF file parsing - Just to learn how ELF files are structured.
+		\item Making a GUI instead of a TUI - Just to learn how to make GUIs
+	\end{itemize}
+
+	\newpage
 	\subsection{Project folder structure}
 	
 	\begin{verbatim}/
@@ -230,21 +239,21 @@
 	+-- report
 	|   +-- report.tex
 	|   +-- report.pdf
+	+-- test
+	|   +--all_instructions.s  
+	|   +--assembler_example_four.s  
+	|   +--assembler_example_one.s  
+	|   +--assembler_example_three.s  
+	|   +--assembler_example_two.s  
+	|   +--Example_One.s  
+	|   +--Example_Two.s  
+	|   +--fib.s  
+	|   +--gcd.s  
+	|   +--segfault.s
 	+-- .gitignore
 	+-- LICENSE
 	+-- Makefile
+	+-- report.pdf
 	+-- README.md\end{verbatim}
-
-	\subsection{Ways that this simulator can be improved}
-
-	There are several ways in which this simulator can be significantly improved, some of them dont even require significant changes. These are changes that I would've made if I had more time:
-
-	\begin{itemize}
-		\item Adding something resembling debugging symbols so that the stacktrace can show the arguments of each function call, displayed in the correct type, would make the stack trace a lot more useful.
-		\item Adding pipelining to the simulator would be relatively simple. In code it would simply involve chopping up the step function according to the different stages and then ordering these stages in reverse order. Additionally some stalling/forwarding logic will be required.
-		\item An indicator could be added at the bottom of the memory pane to show the current Stack size and percentage of memory being used
-		\item ELF file parsing - Just to learn how ELF files are structured.
-		\item Making a GUI instead of a TUI - Just to learn how to make GUIs
-	\end{itemize}
 
 \end{document}

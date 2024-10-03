@@ -16,7 +16,7 @@ The binary is generated in `/bin`
 
 Since this simulator has a TUI, It made sense to make alter some details of the commands. While full details are available in the appendix of the report, here is the short version:
 
-Line numbering starts from .text section. This is not difficult to use as argued in the moodle thread asking for change as line numbers are shown on screen.
+Line numbering for break starts from .text section. This is not difficult to use as argued in the moodle thread asking for change as line numbers are shown on screen.
 del-break and break are in the same command, it just toggles the breakpoint
 
 The run command runs live at a pace of about 5 instructions per second.
