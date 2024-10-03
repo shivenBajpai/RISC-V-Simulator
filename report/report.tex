@@ -63,7 +63,15 @@
 
 	The overall program flow goes as follows,
 
-	<Flowchart of high level program flow>
+	\begin{itemize}
+		\item The program begins execution
+		\item The UI is initialized and various memory allocations are performed
+		\item The simulator waits for commands
+		\item If a load instruction is issued then it trys to assemble the input.
+		\item The simulator steps, runs and stops running the code as instructed. While the code runs, the frontend is continously updated.
+		\item If a new load command is issued, then the simulator once again tries to assemble this input and replaces the loaded code with the new code if successful.
+		\item If an exit command is recieved, It exits gracefully.
+	\end{itemize}
 
 	\subsection{Application is not responding!}
 
@@ -96,7 +104,7 @@
 	To maintain a stacktrace, we create another \verb|struct vec|. At the start of the program, the location of the first instruction is pushed onto this stack.
 	Every time a jump instruction is taken, the address of that instruction is pushed onto this stack and every time a \verb|jalr| instruction is encountered, an address is popped off of the stack. Of course, this only works when jal and jalr are only used according to the convention and only for function calls.
 
-	Implementing breakpoints is also trivial, We just maintain a list of all breakpoint positions. On every 
+	Implementing breakpoints is also trivial, We just maintain a list of all breakpoint positions. On every instructino execution, we check if the next instruction has a breakpoint on it. If it does, then we stop the execution loop
 
 	Lastly, we add a few if conditions on instructions that perform jumps/branches or interact with memory to enforce Memory access rules and ensure that the PC is not moved out of bounds.
 
@@ -135,6 +143,8 @@
 	The "cleaned code" and index of labels that is created as an output of assembly process is used for the display of code divided by section labels in the Code pane. The calculation for the position of each line after taking into account sectioning due to labels is slightly complicated and would be inefficient to repeat on every draw of the frame, so all the positions are calculated only once when a file is loaded in and then re-used on every draw.
 
 	\section{Testing}
+
+	For testing I used the sample cases given in the problem statement, along with a fibonacci calculation program, the program from GCD lab assignment and all testcases I had from my assembler. These are all available in the \verb|\test| directory
 
 	\newpage
 	\appendix
@@ -224,4 +234,17 @@
 	+-- LICENSE
 	+-- Makefile
 	+-- README.md\end{verbatim}
+
+	\subsection{Ways that this simulator can be improved}
+
+	There are several ways in which this simulator can be significantly improved, some of them dont even require significant changes. These are changes that I would've made if I had more time:
+
+	\begin{itemize}
+		\item Adding something resembling debugging symbols so that the stacktrace can show the arguments of each function call, displayed in the correct type, would make the stack trace a lot more useful.
+		\item Adding pipelining to the simulator would be relatively simple. In code it would simply involve chopping up the step function according to the different stages and then ordering these stages in reverse order. Additionally some stalling/forwarding logic will be required.
+		\item An indicator could be added at the bottom of the memory pane to show the current Stack size and percentage of memory being used
+		\item ELF file parsing - Just to learn how ELF files are structured.
+		\item Making a GUI instead of a TUI - Just to learn how to make GUIs
+	\end{itemize}
+
 \end{document}

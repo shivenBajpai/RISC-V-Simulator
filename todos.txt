@@ -1,8 +1,3 @@
-todos:
-
-commenting
-dead code analysis
-
 add to report:
 test section
 flowchart
@@ -20,16 +15,6 @@ unsigned
 ASCII
 
 Aug 2: Pipelined implementation
-
-Implement IF,ID,EX,MEM,WB registers, have it execute from the registers on a stepwise basis.
-We'll have a stall detector just using those conditions
-
-Then we can add an implementation of forwarding
-
-And we can add an implementation of branch prediction
-possibly with multiple options for the predictor type.
-
-But thats a lot of work.
 
 Aug 3: Cache implementation
 
