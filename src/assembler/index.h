@@ -12,6 +12,8 @@ typedef struct label_index {
 
 int add_label(label_index* index, char* label, int position);
 
+int prepend_label(label_index* index, char* label, int position);
+
 int label_to_position(label_index* index, char* label);
 
 char* position_to_label(label_index* index, int position);

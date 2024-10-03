@@ -103,7 +103,7 @@ int main(int* argc, char** argv) {
 				if (memory_template) free(memory_template);
 				memory_template = new_memory_template;
 
-				if (get_section_label(index_of_labels, 0) == -1) add_label(index_of_labels, "main", 0); // Adding main to stack if there is no label at the start
+				if (get_section_label(index_of_labels, 0) == -1) prepend_label(index_of_labels, "main", 0); // Adding main to stack if there is no label at the start
 				index_dedup(index_of_labels);
 				if (stack) st_free(stack);
 				stack = new_stacktrace(index_of_labels);

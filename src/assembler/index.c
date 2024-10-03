@@ -37,6 +37,35 @@ int add_label(label_index* index, char* in_label, int position) {
 	return 0;
 }
 
+int prepend_label(label_index* index, char* in_label, int position) {
+
+	int label_length = strlen(in_label);
+	char* label = malloc((label_length+1) * sizeof(char));
+	strcpy(label, in_label);
+
+	memmove(index->labels+1, index->labels, index->len*sizeof(char*));
+	memmove(index->positions+1, index->positions, index->len*sizeof(int));
+
+	index->labels[0] = label;
+	index->positions[0] = position;
+	index->len++;
+
+	// If out of space, double capacity
+	if (index->len == index->capacity) {
+		index->capacity *= 2;
+		char** labels_new = realloc(index->labels, index->capacity * sizeof(char*));
+		int* positions_new = realloc(index->positions, index->capacity * sizeof(int));
+		if (!labels_new || !positions_new) {
+			printf("Failed to allocate memory for label index\n");
+			return 1;
+		}
+
+		index->labels = labels_new;
+		index->positions = positions_new;
+	}
+	return 0;
+}
+
 int label_to_position(label_index* index, char* label) {
 	for(int i=0; i<index->len; i++) {
 		if (strcmp(index->labels[i], label) == 0) {
