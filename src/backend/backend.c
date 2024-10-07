@@ -251,7 +251,7 @@ int step() {
                 return 3;
             }
             data = *(memory + *rs1 + imm);
-            if (data&0x00000008) data |= 0xFFFFFF0;
+            if (data&0x00000080) data |= 0xFFFFFFFFFFFFFF00;
             *rd = data;
             break;
 
@@ -261,7 +261,7 @@ int step() {
                 return 3;
             }
             data = *(uint16_t*)(memory + *rs1 + imm);
-            if (data&0x00000080) data |= 0xFFFFF00;
+            if (data&0x00008000) data |= 0xFFFFFFFFFFFF0000;
             *rd = data;
             break;
 
@@ -271,7 +271,7 @@ int step() {
                 return 3;
             }
             data = *(uint32_t*)(memory + *rs1 + imm);
-            if (data&0x00008000) data |= 0xFFFFFF0;
+            if (data&0x80000000) data |= 0xFFFFFFFFFFFF0000;
             *rd = data;
             break;
 
@@ -281,7 +281,6 @@ int step() {
                 return 3;
             }
             data = *(uint64_t*)(memory + *rs1 + imm);
-            if (data&0x80000000) data |= 0xFFFFFF0;
             *rd = data;
             break;
 
