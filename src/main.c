@@ -9,12 +9,14 @@
 #include "assembler/vec.h"
 #include "assembler/assembler.h"
 #include "backend/stacktrace.h"
+#include "time.h"
 
 static stacktrace* stack = NULL;
 static label_index* index_of_labels = NULL;
 static uint32_t* hexcode = NULL;
 static uint8_t *memory_template = NULL;
 static char* cleaned_code = NULL;
+static CacheConfig cache_config;
 
 
 // Ensures memory is freed and ncurses mode is exited properly, regardless of exit cause`
@@ -26,14 +28,18 @@ void exit_handler() {
 	if (cleaned_code) free(cleaned_code);
 	if (memory_template) free(memory_template);
 	destroy_frontend();
+	destroy_backend();
 }
 
 int main(int* argc, char** argv) {
 	
 	Command command = NONE;
+	bool file_loaded = false;
+
+	cache_config.has_cache = 0;
 	
 	atexit(*(exit_handler));
-	input_file = malloc(sizeof(char) * 256); // Allocate memory for the input file_name
+	// input_file = malloc(sizeof(char) * 256); // Allocate memory for the input file_name // TODO: make this be fixed size and put it in d-segment
 
 	// CLI Switches
     while(*(++argv) != NULL) {
@@ -43,8 +49,10 @@ int main(int* argc, char** argv) {
 		}
     }
 
+	srand(time(NULL));
+
 	// Initialization
-	reset_backend(true);
+	reset_backend(true, cache_config);
 
 	init_frontend();
 	set_frontend_register_pointer(get_register_pointer());
@@ -54,13 +62,15 @@ int main(int* argc, char** argv) {
 
 	memory_template = malloc(sizeof(uint8_t)* MEMORY_SIZE);
 
+	FILE* fp = NULL;
+
 	// Main loop
 	// Polls for updates from the frontend, and processes them
 	while (1) {
 		switch (frontend_update()) {
 			case LOAD:
-	
-				FILE* fp = fopen(input_file, "r");
+				
+				fp = fopen(input_file, "r");
 
 				if (!fp) {
 					show_error("Failed to read %s!", input_file);
@@ -109,20 +119,23 @@ int main(int* argc, char** argv) {
 				stack = new_stacktrace(index_of_labels);
 				st_push(stack, 0);
 
-				reset_backend(true);
+				reset_backend(true, cache_config);
 				reset_frontend(true);
 
 				// Write data segment and instructions into memory
-				memcpy(get_memory_pointer(), &hexcode[1], hexcode[0]*4); // hexcode[0] is implicitly the length in words. actual hexcode starts from hexcode[1]
-				memcpy(get_memory_pointer()+DATA_BASE, memory_template+DATA_BASE, MEMORY_SIZE-DATA_BASE);
+				memcpy(get_memory_pointer()->data, &hexcode[1], hexcode[0]*4); // hexcode[0] is implicitly the length in words. actual hexcode starts from hexcode[1]
+				memcpy(get_memory_pointer()->data+DATA_BASE, memory_template+DATA_BASE, MEMORY_SIZE-DATA_BASE);
 
 				// Give frontend new pointers to data in backend
 				update_code(cleaned_code, hexcode[0]);
 				set_stack_pointer(stack);
 				set_stacktrace_pointer(stack);
 				set_breakpoints_pointer(get_breakpoints_pointer());
+				set_frontend_memory_pointer(get_memory_pointer(), MEMORY_SIZE);
 				set_labels_pointer(index_of_labels);
 				set_hexcode_pointer((uint32_t*) &hexcode[1]);
+				
+				file_loaded = true;
 				break;
 
 			case RUN:
@@ -140,7 +153,7 @@ int main(int* argc, char** argv) {
 				stack = new_stacktrace(index_of_labels);
 				st_push(stack, 0);
 
-				reset_backend(false);
+				reset_backend(false, cache_config);
 				reset_frontend(false);
 
 				// Give frontend new pointers to data in backend
@@ -149,8 +162,8 @@ int main(int* argc, char** argv) {
 				set_breakpoints_pointer(get_breakpoints_pointer());
 				
 				// Reset data segment and instructions in memory
-				memcpy(get_memory_pointer(), &hexcode[1], hexcode[0]*4);
-				memcpy(get_memory_pointer()+DATA_BASE, memory_template+DATA_BASE, MEMORY_SIZE-DATA_BASE);
+				memcpy(get_memory_pointer()->data, &hexcode[1], hexcode[0]*4);
+				memcpy(get_memory_pointer()->data+DATA_BASE, memory_template+DATA_BASE, MEMORY_SIZE-DATA_BASE);
 				set_hexcode_pointer((uint32_t*) &hexcode[1]);
 				break;
 
@@ -162,6 +175,104 @@ int main(int* argc, char** argv) {
 
 			case STEP:
 				if (step() == 1) show_error("Nothing to step");
+				break;
+
+			case CACHE_DISABLE:
+				if (!cache_config.has_cache) {
+					show_error("Cache is already disabled!");
+					break;
+				}
+
+				cache_config.has_cache = false;
+
+				reset_backend(true, cache_config);
+				reset_frontend(false);
+
+				// Give frontend new pointers to data in backend
+				set_breakpoints_pointer(get_breakpoints_pointer());
+				set_frontend_memory_pointer(get_memory_pointer(), MEMORY_SIZE);
+				
+				if (file_loaded) {
+					// Reset stack
+					if (stack) st_free(stack);
+					stack = new_stacktrace(index_of_labels);
+					st_push(stack, 0);
+					
+					set_stack_pointer(stack);
+					set_stacktrace_pointer(stack);
+
+					// Reset data segment and instructions in memory
+					memcpy(get_memory_pointer()->data, &hexcode[1], hexcode[0]*4);
+					memcpy(get_memory_pointer()->data+DATA_BASE, memory_template+DATA_BASE, MEMORY_SIZE-DATA_BASE);
+					set_hexcode_pointer((uint32_t*) &hexcode[1]);
+				}	
+
+				break;
+
+			case CACHE_ENABLE:
+				fp = fopen(input_file, "r");
+
+				if (!fp) {
+					show_error("Failed to open %s!", input_file);
+					break;
+				}
+
+				CacheConfig new_config = read_cache_config(fp);
+
+				if (!new_config.has_cache) break;
+				cache_config = new_config;				
+
+				reset_backend(true, cache_config);
+				reset_frontend(false);
+
+				// Give frontend new pointers to data in backend
+				set_breakpoints_pointer(get_breakpoints_pointer());
+				set_frontend_memory_pointer(get_memory_pointer(), MEMORY_SIZE);
+				
+				if (file_loaded) {
+					// Reset stack
+					if (stack) st_free(stack);
+					stack = new_stacktrace(index_of_labels);
+					st_push(stack, 0);
+
+					set_stack_pointer(stack);
+					set_stacktrace_pointer(stack);
+
+					// Reset data segment and instructions in memory
+					memcpy(get_memory_pointer()->data, &hexcode[1], hexcode[0]*4);
+					memcpy(get_memory_pointer()->data+DATA_BASE, memory_template+DATA_BASE, MEMORY_SIZE-DATA_BASE);
+					set_hexcode_pointer((uint32_t*) &hexcode[1]);
+				}
+
+				fclose(fp);
+				break;
+
+			case CACHE_DUMP:
+				if (!cache_config.has_cache) {
+					show_error("Cache is disabled!");
+					break;
+				}
+
+				fp = fopen(input_file, "w");
+
+				if (!fp) {
+					show_error("Failed to open %s!", input_file);
+					break;
+				}
+
+				dump_cache(get_memory_pointer(), fp);
+
+				fclose(fp);
+				show_error("Cache dump successful!");
+				break;
+
+			case CACHE_INVALIDATE:
+				if (!cache_config.has_cache) {
+					show_error("Cache is disabled!");
+					break;
+				}
+
+				invalidate_cache(get_memory_pointer());
 				break;
 		}
 	}

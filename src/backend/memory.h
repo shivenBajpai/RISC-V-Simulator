@@ -4,13 +4,13 @@
 #include "stdint.h"
 #include "stdbool.h"
 #include "stdlib.h"
+#include "stdio.h"
 #include "time.h"
 
 #define DATA_BASE 0x10000
 #define MEMORY_SIZE 0x50000 + 1 // Also used as end from which stack grows downward
 #define VALID (uint8_t) 0b1000
 #define DIRTY (uint8_t) 0b0100
-
 
 typedef enum ReplacementPolicy {
     FIFO,
@@ -25,6 +25,7 @@ typedef enum WritePolicy {
 
 typedef struct CacheConfig {
     uint64_t n_lines;
+    uint64_t n_blocks;
     uint64_t block_size;
     uint64_t associativity;
     ReplacementPolicy replacement_policy;
@@ -38,7 +39,7 @@ typedef struct CacheStats {
     uint64_t hit_count;
     uint64_t miss_count;
     uint64_t writebacks;
-    long double hit_rate;
+    double hit_rate;
 } CacheStats;
 
 typedef struct CacheMasks {
@@ -68,5 +69,11 @@ uint8_t read_data_byte(Memory* mem, uint64_t addr);
 void write_data_byte(Memory* mem, uint64_t addr, uint8_t data);
 
 void free_vmem(Memory* Memory);
+
+void invalidate_cache(Memory* memory);
+
+void dump_cache(Memory* memory, FILE* f); 
+
+CacheConfig read_cache_config(FILE* fp);
 
 #endif

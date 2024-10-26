@@ -1,0 +1,24 @@
+cache sim enable config_file: DONE
+Config file parsing pending, should be simple enough
+
+cache sim disable: DONE
+pending
+even simpler
+
+cache sim status: DONE
+ 
+cache sim invalidate: DONE
+
+cache sim dump: DONE
+
+cache sim stats: DONE
+
+actual cache functionality: PENDING
+
+cache.output: pending
+
+# Plan of actions
+
+- After that we can implement functionality
+- After that we can implement access trace 
+- After that we prettify the cache table

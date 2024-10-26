@@ -5,6 +5,7 @@
 #include "../assembler/vec.h"
 #include <stdbool.h>
 #include "../backend/stacktrace.h"
+#include "../backend/memory.h"
 
 // Messages exchanged between frontend and other sections of the application
 typedef enum {
@@ -16,6 +17,10 @@ typedef enum {
     STOP,
     BREAKLINE,
     RESET,
+    CACHE_DISABLE,
+    CACHE_ENABLE,
+    CACHE_INVALIDATE,
+    CACHE_DUMP,
     NONE
 } Command;
 
@@ -24,7 +29,7 @@ void destroy_frontend();
 
 void set_frontend_register_pointer(uint64_t* regs_pointer);
 void set_frontend_pc_pointer(uint64_t* pc_pointer);
-void set_frontend_memory_pointer(uint8_t* memory_pointer, uint64_t size_of_memory);
+void set_frontend_memory_pointer(Memory* memory_pointer, uint64_t size_of_memory);
 void set_breakpoints_pointer(vec* breakpoints_pointer);
 void set_stack_pointer(stacktrace* stacktrace);
 void set_reg_write(uint64_t reg);

@@ -7,6 +7,7 @@
 #include "frontend.h"
 #include "../globals.h"
 #include "../backend/stacktrace.h"
+#include "../backend/memory.h"
 
 // Related to terminal color configuration
 #define C_NORMAL 0
@@ -25,6 +26,7 @@ static int cursor=0;
 static int input=ERR;                   // Stores last input
 static int code_scroll=0;               // Scroll related information
 static int aux_scroll=0;
+static int cache_scroll=0;
 static int lines_of_code=0;
 static char* last_command = NULL;       // Relating to the input line at the bottom
 static char* input_buffer = NULL;       
@@ -33,6 +35,7 @@ static size_t input_buffer_size;
 static bool initialized = false;        // State flags
 static bool showing_error = false;
 static bool showing_mem = false;
+static bool showing_cache = false;
 static bool color_mode = false;
 static bool run_lock = false;
 static bool showing_run_lock = false;
@@ -43,7 +46,8 @@ static uint64_t memory_size = 0;        // Size of memory (for scrolling)
 
 static uint64_t* regs = NULL;
 static uint64_t* pc = NULL;
-static uint8_t* memory = NULL;
+static uint8_t* memory_data = NULL;
+static Memory* memory = NULL;
 static int* code_v_offsets = NULL;      // Stores a pre-calculated list of vertical offsets of each line of code.
 static char** code = NULL;
 static uint32_t* hexcode = NULL;
@@ -51,10 +55,19 @@ static vec* breakpoints = NULL;
 static label_index* labels = NULL;
 static stacktrace* stack = NULL;
 
+static const char policy_names[3][10] = {"FIFO", "LRU ", "RAND"};
+
+static int input_root_x, input_root_y, input_h, input_w;
+static int register_w, register_root_x, register_root_y, register_h;
+static int aux_root_x, aux_root_y, aux_w, aux_h;
+static int cache_stats_root_x, cache_stats_root_y, cache_stats_w, cache_stats_h;
+static int cache_root_x, cache_root_y, cache_w, cache_h;
+static int code_root_x, code_root_y, code_w, code_h;
+
 // Utility functions to link frontend to backend
 void set_frontend_register_pointer(uint64_t* regs_pointer) {regs = regs_pointer;}
 void set_frontend_pc_pointer(uint64_t* pc_pointer) {pc = pc_pointer;}
-void set_frontend_memory_pointer(uint8_t* memory_pointer, uint64_t size_of_memory) {memory = memory_pointer; memory_size = size_of_memory;}
+void set_frontend_memory_pointer(Memory* memory_pointer, uint64_t size_of_memory) {memory = memory_pointer; memory_data = &memory_pointer->data[0]; memory_size = size_of_memory;}
 void set_breakpoints_pointer(vec* breakpoints_pointer) {breakpoints = breakpoints_pointer;}
 void set_stack_pointer(stacktrace* stacktrace) {stack = stacktrace;}
 void set_hexcode_pointer(uint32_t* hexcode_pointer) {hexcode = hexcode_pointer;}
@@ -65,6 +78,7 @@ void reset_frontend(bool hard) {
     if (hard) code_scroll = 0;
     last_reg_write = -2;
     if (!showing_mem) aux_scroll = 0;
+    cache_scroll = 0;
 }
 
 void release_run_lock() {
@@ -304,7 +318,7 @@ void write_memory(int x, int y, int w, int h) {
         color_toggle = !color_toggle;
 
         // Write the actual content
-        mvprintw(y+2+offset, x+2+padding/4, "0x%08X %*s 0x%02x", i, padding/2, "", memory[i]);
+        mvprintw(y+2+offset, x+2+padding/4, "0x%08X %*s 0x%02x", i, padding/2, "", memory_data[i]);
         offset++;
     }
 
@@ -339,33 +353,122 @@ void write_stack(int x, int y, int w, int h) {
 
 }
 
+void write_cache(int x, int y, int w, int h) {
+    if (!memory->cache_config.has_cache) {
+        write_centered(x, y+(h/2), w, "Cache is disabled");
+        return;
+    }
+
+    if (h<7) return;
+    if (w<34) return;
+    // 0x00 0 0 0x0000000000000000 44 18 32 54 23 53 34 
+
+    int last_line = cache_scroll+h-6;
+    int max_bytes = (w<31+3*memory->cache_config.block_size)?(w-31)/3:memory->cache_config.block_size;
+    int v_offset = 0;
+    int h_offset = (w - 31 - 3*max_bytes)/2;
+    if (last_line > memory->cache_config.n_blocks) last_line = memory->cache_config.n_blocks;
+    
+    // printf("%d %d %d\n", w, h_offset, x+2+h_offset);
+    // return;
+    for (int i=cache_scroll; i<last_line; i++) {
+        mvprintw(y+4+v_offset, x+2+h_offset," 0x%02lx %d %d 0x%016lx",
+            i/memory->cache_config.associativity,
+            memory->cache[i*memory->masks.block_offset]&VALID?1:0,
+            memory->cache[i*memory->masks.block_offset]&DIRTY?1:0,
+            *(uint64_t*) (memory->cache+(i*memory->masks.block_offset+1)));
+        // mvprintw(y+4+v_offset, x+2+h_offset," 0x%02lx %d %d 0x%016lx", 1, 1, 0, 128);
+
+        // for (int j=0; j<memory->cache_config.associativity; j++) {
+        for (int j=0; j<max_bytes; j++) {
+            mvprintw(y+4+v_offset, x+29+h_offset+3*j, " %02x", memory->cache[i*memory->masks.block_offset+memory->masks.data_offset+j]);
+            // mvprintw(y+4+v_offset, x+29+h_offset+3*j, " %02x", 64);
+        }
+        
+        v_offset++;
+    }
+}
+
+void write_cache_stats(int x, int y, int w, int h) {
+    if (!memory->cache_config.has_cache) return;
+    if (h<=6) return;
+
+    int offset = (w-72)/2;
+    if (offset<=0) return;
+
+    mvprintw(y+2, x+1+offset, " Size     :%7luB   Block_Size  :%7luB   Associativity : %7lu ", memory->cache_config.block_size*memory->cache_config.n_lines*memory->cache_config.associativity, memory->cache_config.block_size, memory->cache_config.associativity);
+    mvprintw(y+3, x+1+offset, " Accesses :%7lu    Write_Backs :%7lu    Policy        : %s %s ", memory->cache_stats.access_count, memory->cache_stats.writebacks ,policy_names[memory->cache_config.replacement_policy], memory->cache_config.write_policy==WriteBack?"WB":"WT");
+    mvprintw(y+4, x+1+offset, " Hits     :%7lu    Missess     :%7lu    Hit_Rate      : %.5lf ", memory->cache_stats.hit_count, memory->cache_stats.miss_count, memory->cache_stats.hit_rate);
+}
+
 // Draws a frame and renders it
 void draw() {
     getmaxyx(stdscr, rows, columns); // Get window size
 
     // Calculate the position and size of everything based on window size
-    int input_root_x = 0, input_root_y = rows-4, input_h=4, input_w=columns;
-    int register_root_x = 0.75*columns, register_root_y = 0, register_w=columns-register_root_x, register_h=input_root_y+1;
-    int aux_root_x = 0.5*columns, aux_root_y = 0, aux_w=register_root_x-aux_root_x+1, aux_h=input_root_y+1;
-    int code_root_x = 0, code_root_y = 0, code_w=aux_root_x+1, code_h=input_root_y+1;
+    input_root_x = 0;
+    input_root_y = rows-4;
+    input_h=4;
+    input_w=columns;
+    
+    register_w = 0.25*columns, // TODO: Make this responsive someday (update scroll part too) columns>108?27:0.25*columns;
+    register_root_x = columns-register_w;
+    register_root_y = 0;
+    register_h=input_root_y+1;
+    
+    aux_root_x = 0.5*columns;
+    aux_root_y = 0;
+    aux_w=register_root_x-aux_root_x+1;
+    aux_h=input_root_y+1;
+
+    cache_stats_root_x = 0.5*columns;
+    cache_stats_root_y = input_root_y>6?input_root_y - 6:1;
+    cache_stats_w = columns-cache_stats_root_x;
+    cache_stats_h = input_root_y-cache_stats_root_y+1;
+    
+    cache_root_x = 0.5*columns;
+    cache_root_y = 0;
+    cache_w = columns-cache_root_x;
+    cache_h = cache_stats_root_y+1;
+    
+    code_root_x = 0;
+    code_root_y = 0;
+    code_w=aux_root_x+1;
+    code_h=input_root_y+1;
     
     // Drawing the outline and title of the panes
     erase();
     draw_outline_rect(0,0,rows,columns);
     draw_outline_rect(input_root_x, input_root_y, input_h, input_w);
-    draw_outline_rect(register_root_x, register_root_y, register_h, register_w);
-    draw_outline_rect(aux_root_x, aux_root_y, aux_h, aux_w);
+    if (showing_cache) {
+        draw_outline_rect(cache_root_x, cache_root_y, cache_h, cache_w);
+        draw_outline_rect(cache_stats_root_x, cache_stats_root_y, cache_stats_h, cache_stats_w);
+    } else {
+        draw_outline_rect(register_root_x, register_root_y, register_h, register_w);
+        draw_outline_rect(aux_root_x, aux_root_y, aux_h, aux_w);
+    }
     draw_outline_rect(code_root_x, code_root_y, code_h, code_w);
 
-    write_centered(register_root_x, register_root_y, register_w, "REGISTERS");
-    write_centered(aux_root_x, aux_root_y, aux_w, showing_mem?"MEMORY":"STACK");
+    if (showing_cache) {
+        write_centered(cache_root_x, cache_root_y, cache_w, "CACHE");
+        write_centered(cache_stats_root_x, cache_stats_root_y, cache_stats_w, "STATS");
+    } else {
+        write_centered(register_root_x, register_root_y, register_w, "REGISTERS");
+        write_centered(aux_root_x, aux_root_y, aux_w, showing_mem?"MEMORY":"STACK");
+    }
     write_centered(code_root_x, code_root_y, code_w, "CODE");
 
     // Render the actual content
     mvprintw(0,0,"PC: %08lX", *pc);
-    write_regs(register_root_x, register_root_y, register_h, register_w);
-    if (showing_mem) write_memory(aux_root_x, aux_root_y, aux_w, aux_h);
-    else write_stack(aux_root_x, aux_root_y, aux_w, aux_h);
+    if (showing_cache) {
+        write_cache(cache_root_x, cache_root_y, cache_w, cache_h);
+        write_cache_stats(cache_stats_root_x, cache_stats_root_y, cache_stats_w, cache_stats_h);
+    } else {
+        write_regs(register_root_x, register_root_y, register_h, register_w);
+        if (showing_mem) write_memory(aux_root_x, aux_root_y, aux_w, aux_h);
+        else write_stack(aux_root_x, aux_root_y, aux_w, aux_h);
+
+    }
     write_code(code_root_x, code_root_y, code_h, code_w);
 
     // Render input line at the bottom
@@ -383,6 +486,8 @@ void draw() {
 void destroy_frontend() {
     initialized = false;
     endwin();
+    if (code) free(code);
+    if (code_v_offsets) free(code_v_offsets);
 }
 
 // Utility function to show errors
@@ -425,6 +530,7 @@ Command frontend_update() {
 
         if (mouse.bstate == BUTTON4_PRESSED) {
             if (mouse.x<columns/2) code_scroll = code_scroll==0?code_scroll:code_scroll-1;
+            else if (showing_cache) {if (mouse.y<cache_stats_root_y) cache_scroll = cache_scroll==0?cache_scroll:cache_scroll-1;}
             else if (mouse.x<3*columns/4) {
                 if (showing_mem) aux_scroll = aux_scroll==0?aux_scroll:aux_scroll-1;
                 else aux_scroll = aux_scroll==0?aux_scroll:aux_scroll-1;
@@ -433,6 +539,7 @@ Command frontend_update() {
 
         if (mouse.bstate == BUTTON5_PRESSED) {
             if (mouse.x<columns/2) code_scroll = code_scroll<=code_v_offsets[lines_of_code-1]-5?code_scroll+1:code_scroll;
+            else if (showing_cache) {if (mouse.y<cache_stats_root_y) cache_scroll = (cache_scroll<=(memory->cache_config.n_blocks)-5)?cache_scroll+1:cache_scroll;}
             else if (mouse.x<3*columns/4) {
                 if (showing_mem) aux_scroll = aux_scroll<=(memory_size-5)?aux_scroll+1:aux_scroll;
                 else aux_scroll = aux_scroll<=(stack->len-5)?aux_scroll+1:aux_scroll;
@@ -445,6 +552,7 @@ Command frontend_update() {
 
     if (input == KEY_UP) {
         if (mouse.x<columns/2) code_scroll = code_scroll==0?code_scroll:code_scroll-1;
+        else if (showing_cache) {if (mouse.y<cache_stats_root_y) cache_scroll = cache_scroll==0?cache_scroll:cache_scroll-1;}
         else if (mouse.x<3*columns/4) {
             if (showing_mem) aux_scroll = aux_scroll==0?aux_scroll:aux_scroll-1;
             else aux_scroll = aux_scroll==0?aux_scroll:aux_scroll-1;
@@ -455,6 +563,7 @@ Command frontend_update() {
 
     if (input == KEY_DOWN) {
         if (mouse.x<columns/2) code_scroll = code_scroll<=code_v_offsets[lines_of_code-1]-5?code_scroll+1:code_scroll;
+        else if (showing_cache) {if (mouse.y<cache_stats_root_y) cache_scroll = (cache_scroll<=(memory->cache_config.n_blocks)-5)?cache_scroll+1:cache_scroll;}
         else if (mouse.x<3*columns/4) {
             if (showing_mem) aux_scroll = aux_scroll<=(memory_size-5)?aux_scroll+1:aux_scroll;
             else aux_scroll = aux_scroll<=(stack->len-5)?aux_scroll+1:aux_scroll;
@@ -556,6 +665,31 @@ Command frontend_update() {
             strcpy(input_file, last_command+6);
             return LOAD;
 
+        } else if (!strncmp("$cache_sim enable ", last_command, 18)) {
+            if (run_lock) {
+                show_error("Command invalid while running!");
+                return NONE;
+            }
+            strcpy(input_file, last_command+18);
+            return CACHE_ENABLE;
+
+        } else if (!strncmp("$cache_sim dump ", last_command, 16)) {
+            if (!memory->cache_config.has_cache) {
+                show_error("Cache is disabled!");
+                return NONE;
+            }
+
+            strcpy(input_file, last_command+16);
+            return CACHE_DUMP;
+
+        } else if (!strncmp("$cache_sim disable", last_command, 17)) {
+            if (run_lock) {
+                show_error("Command invalid while running!");
+                return NONE;
+            }
+
+            return CACHE_DISABLE;
+
         } else if (!strncmp("$break ", last_command, 7)) {
 
             if (run_lock) {
@@ -595,6 +729,8 @@ Command frontend_update() {
 
             if (strlen(last_command) == 4) {
                 showing_mem = true;
+                showing_cache = false;
+                aux_scroll = 0;
                 return NONE;
             }
 
@@ -620,6 +756,8 @@ Command frontend_update() {
             
             aux_scroll = new_addr;
             showing_mem = true;
+            showing_cache = false;
+
 
         } else if (last_command_len == 4 && !strcmp("$run", last_command)) {
 
@@ -653,6 +791,24 @@ Command frontend_update() {
             }
             return STEP;
 
+        } else if ((last_command_len == 16 && !strcmp("$cache_sim stats", last_command)) || (last_command_len == 17 && !strcmp("$cache_sim status", last_command))) {
+            if (showing_cache) {
+                show_error("Cache Info already visible!");
+            } else {
+                showing_cache = true;
+                cache_scroll = 0;
+            }
+            
+            return NONE;
+
+        } else if (last_command_len == 21 && !strcmp("$cache_sim invalidate", last_command)) {
+            if (!memory->cache_config.has_cache) {
+                show_error("Cache is disabled!");
+                return NONE;
+            } 
+            
+            return CACHE_INVALIDATE;
+
         } else if (last_command_len == 6 && !strcmp("$reset", last_command)) {
             if (!code_loaded) {
                 show_error("No code loaded! use load <filename> to load code");
@@ -668,9 +824,14 @@ Command frontend_update() {
             if (!showing_mem) show_error("Stack Trace is already shown on the right!");
             else aux_scroll = 0;
             showing_mem = false;
+            showing_cache = false;
 
         } else if (last_command_len == 5 && !strcmp("$regs", last_command)) {
-            show_error("Registers are already shown on the right pane!");
+            if (!showing_cache) {
+                show_error("Registers are already shown on the right pane!");
+            } else {
+                showing_cache = false;
+            }
 
         } else if (last_command_len == 5 && !strcmp("$exit", last_command)) {
             if (run_lock) {

@@ -9,6 +9,7 @@
 #include "../assembler/vec.h"
 #include "../frontend/frontend.h"
 #include "backend.h"
+#include "memory.h"
 
 # define RUN_DELAY 200
 
@@ -74,26 +75,36 @@ enum Instruction_Constants{
 static uint64_t registers[32] = {0};
 static uint64_t pc = 0;
 static vec *breakpoints = NULL;
-static stacktrace *stack = NULL;
-static uint8_t memory[MEMORY_SIZE] = {0};
+static Memory* memory = NULL;
+static stacktrace* stack = NULL;
+static uint8_t* memory_data = NULL;
 extern bool text_write_enabled;
 
 // Utility functions used to link frontend to backend
 uint64_t* get_register_pointer() {return &registers[0];}
 uint64_t* get_pc_pointer() {return &pc;}
 vec* get_breakpoints_pointer() {return breakpoints;}
-uint8_t* get_memory_pointer() {return &memory[0];}
+Memory* get_memory_pointer() {return memory;}
+CacheStats* get_cache_stats_pointer() {return &(memory->cache_stats);}
 void set_stacktrace_pointer(stacktrace* stacktrace) {stack = stacktrace;}
 
 // Resets memeory and registers. The hard parameters is true if this is a new file load and false if it is just a reset
-void reset_backend(bool hard) {
-    memset(registers, 0, sizeof(registers));
-    memset(memory, 0, sizeof(memory));
+void reset_backend(bool hard, CacheConfig cache_config) {
     if (hard) {
         if (breakpoints) free_managed_array(breakpoints);
+        if (memory) free_vmem(memory);
         breakpoints = new_managed_array();
+        memory = new_vmem(cache_config);
+        memory_data = memory->data;
     }
+    memset(registers, 0, sizeof(registers));
+    memset(memory_data, 0, MEMORY_SIZE);
     pc = 0;
+}
+
+void destroy_backend() {
+    if (memory) free_vmem(memory);
+    if (breakpoints) free_managed_array(breakpoints);
 }
 
 // Implementation of the STEP command
@@ -104,7 +115,7 @@ int step() {
     }
 
     // Deconstruct instruction
-    uint32_t instruction = (memory[pc+3] << 24) | (memory[pc+2] << 16) | (memory[pc+1] << 8) |  memory[pc];
+    uint32_t instruction = (memory_data[pc+3] << 24) | (memory_data[pc+2] << 16) | (memory_data[pc+1] << 8) |  memory_data[pc];
     uint32_t funct_op = 0;
     uint64_t imm = 0;
     uint64_t *rd = registers + ((0x00000F80 & instruction) >> 7);
@@ -250,7 +261,7 @@ int step() {
                 show_error("Invalid Memory Access! line %d attempted to read byte at 0x%08lX", pc/4, (*rs1 + imm));
                 return 3;
             }
-            data = *(memory + *rs1 + imm);
+            data = *(memory_data + *rs1 + imm);
             if (data&0x00000080) data |= 0xFFFFFFFFFFFFFF00;
             *rd = data;
             break;
@@ -260,7 +271,7 @@ int step() {
                 show_error("Invalid Memory Access! line %d attempted to read hword at 0x%08lX", pc/4, (*rs1 + imm));
                 return 3;
             }
-            data = *(uint16_t*)(memory + *rs1 + imm);
+            data = *(uint16_t*)(memory_data + *rs1 + imm);
             if (data&0x00008000) data |= 0xFFFFFFFFFFFF0000;
             *rd = data;
             break;
@@ -270,7 +281,7 @@ int step() {
                 show_error("Invalid Memory Access! line %d attempted to read word at 0x%08lX", pc/4, (*rs1 + imm));
                 return 3;
             }
-            data = *(uint32_t*)(memory + *rs1 + imm);
+            data = *(uint32_t*)(memory_data + *rs1 + imm);
             if (data&0x80000000) data |= 0xFFFFFFFFFFFF0000;
             *rd = data;
             break;
@@ -280,7 +291,7 @@ int step() {
                 show_error("Invalid Memory Access! line %d attempted to read dword at 0x%08lX", pc/4, (*rs1 + imm));
                 return 3;
             }
-            data = *(uint64_t*)(memory + *rs1 + imm);
+            data = *(uint64_t*)(memory_data + *rs1 + imm);
             *rd = data;
             break;
 
@@ -289,7 +300,7 @@ int step() {
                 show_error("Invalid Memory Access! line %d attempted to read byte at 0x%08lX", pc/4, (*rs1 + imm));
                 return 3;
             }
-            *rs1 = *(memory + *rs1 + imm);
+            *rs1 = *(memory_data + *rs1 + imm);
             break;
 
         case lhu:
@@ -297,7 +308,7 @@ int step() {
                 show_error("Invalid Memory Access! line %d attempted to read hword at 0x%08lX", pc/4, (*rs1 + imm));
                 return 3;
             }
-            *rs1 = *(uint16_t*)(memory + *rs1 + imm);
+            *rs1 = *(uint16_t*)(memory_data + *rs1 + imm);
             break;
 
         case lwu:
@@ -305,7 +316,7 @@ int step() {
                 show_error("Invalid Memory Access! line %d attempted to read word at 0x%08lX", pc/4, (*rs1 + imm));
                 return 3;
             }
-            *rs1 = *(uint32_t*)(memory + *rs1 + imm);
+            *rs1 = *(uint32_t*)(memory_data + *rs1 + imm);
             break;
 
         case sb:
@@ -318,7 +329,7 @@ int step() {
                 show_error("Invalid Memory Access! line %d attempted to write byte at 0x%08lX, smc is not enabled.", pc/4, (*rs1 + imm));
                 return 3;
             }
-            memcpy(memory + *rs1 + imm, rs2, 1);
+            memcpy(memory_data + *rs1 + imm, rs2, 1);
             break;
 
         case sh:
@@ -331,7 +342,7 @@ int step() {
                 show_error("Invalid Memory Access! line %d attempted to write hword at 0x%08lX, smc is not enabled.", pc/4, (*rs1 + imm));
                 return 3;
             }
-            memcpy(memory + *rs1 + imm, rs2, 2);
+            memcpy(memory_data + *rs1 + imm, rs2, 2);
             break;
         
         case sw:
@@ -344,7 +355,7 @@ int step() {
                 show_error("Invalid Memory Access! line %d attempted to write word at 0x%08lX, smc is not enabled.", pc/4, (*rs1 + imm));
                 return 3;
             }
-            memcpy(memory + *rs1 + imm, rs2, 4);
+            memcpy(memory_data + *rs1 + imm, rs2, 4);
             break;
         
         case sd:
@@ -357,7 +368,7 @@ int step() {
                 show_error("Invalid Memory Access! line %d attempted to write dword at 0x%08lX, smc is not enabled.", pc/4, (*rs1 + imm));
                 return 3;
             }
-            memcpy(memory + *rs1 + imm, rs2, 8);
+            memcpy(memory_data + *rs1 + imm, rs2, 8);
             break;
 
         case beq:
@@ -413,11 +424,11 @@ int step() {
     pc += 4; // Increment the PC
     registers[0] = 0; // Make sure x0 doesn't change
 
-    if (memory[pc] == ebreak) { // stop if next instruction is a breakpoint
+    if (memory_data[pc] == ebreak) { // stop if next instruction is a breakpoint
         return 2;
     }
 
-    if (memory[pc] == NOP) { // assume end of code if NOP is encountered.
+    if (memory_data[pc] == NOP) { // assume end of code if NOP is encountered.
         st_clear(stack);
     }
 
