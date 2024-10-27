@@ -66,7 +66,21 @@ Memory* new_vmem(CacheConfig cache_config);
 
 uint8_t read_data_byte(Memory* mem, uint64_t addr);
 
+uint16_t read_data_halfword(Memory* mem, uint64_t addr);
+
+uint32_t read_data_word(Memory* mem, uint64_t addr);
+
+uint64_t read_data_doubleword(Memory* mem, uint64_t addr);
+
+void reset_cache(Memory* memory);
+
 void write_data_byte(Memory* mem, uint64_t addr, uint8_t data);
+
+void write_data_halfword(Memory* mem, uint64_t addr, uint16_t data);
+
+void write_data_word(Memory* mem, uint64_t addr, uint32_t data);
+
+void write_data_doubleword(Memory* mem, uint64_t addr, uint64_t data);
 
 void free_vmem(Memory* Memory);
 

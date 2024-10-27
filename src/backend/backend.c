@@ -96,6 +96,8 @@ void reset_backend(bool hard, CacheConfig cache_config) {
         breakpoints = new_managed_array();
         memory = new_vmem(cache_config);
         memory_data = memory->data;
+    } else {
+        reset_cache(memory);
     }
     memset(registers, 0, sizeof(registers));
     memset(memory_data, 0, MEMORY_SIZE);
@@ -261,7 +263,8 @@ int step() {
                 show_error("Invalid Memory Access! line %d attempted to read byte at 0x%08lX", pc/4, (*rs1 + imm));
                 return 3;
             }
-            data = *(memory_data + *rs1 + imm);
+            // data = *(memory_data + *rs1 + imm);
+            data = read_data_byte(memory, *rs1 + imm);
             if (data&0x00000080) data |= 0xFFFFFFFFFFFFFF00;
             *rd = data;
             break;
@@ -271,7 +274,8 @@ int step() {
                 show_error("Invalid Memory Access! line %d attempted to read hword at 0x%08lX", pc/4, (*rs1 + imm));
                 return 3;
             }
-            data = *(uint16_t*)(memory_data + *rs1 + imm);
+            // data = *(uint16_t*)(memory_data + *rs1 + imm);
+            data = read_data_halfword(memory, *rs1 + imm);
             if (data&0x00008000) data |= 0xFFFFFFFFFFFF0000;
             *rd = data;
             break;
@@ -281,8 +285,9 @@ int step() {
                 show_error("Invalid Memory Access! line %d attempted to read word at 0x%08lX", pc/4, (*rs1 + imm));
                 return 3;
             }
-            data = *(uint32_t*)(memory_data + *rs1 + imm);
-            if (data&0x80000000) data |= 0xFFFFFFFFFFFF0000;
+            // data = *(uint32_t*)(memory_data + *rs1 + imm);
+            data = read_data_word(memory, *rs1 + imm);
+            if (data&0x80000000) data |= 0xFFFFFFFF00000000;
             *rd = data;
             break;
 
@@ -291,7 +296,8 @@ int step() {
                 show_error("Invalid Memory Access! line %d attempted to read dword at 0x%08lX", pc/4, (*rs1 + imm));
                 return 3;
             }
-            data = *(uint64_t*)(memory_data + *rs1 + imm);
+            // data = *(uint64_t*)(memory_data + *rs1 + imm);
+            data = read_data_doubleword(memory, *rs1 + imm);
             *rd = data;
             break;
 
@@ -300,7 +306,8 @@ int step() {
                 show_error("Invalid Memory Access! line %d attempted to read byte at 0x%08lX", pc/4, (*rs1 + imm));
                 return 3;
             }
-            *rs1 = *(memory_data + *rs1 + imm);
+            // *rs1 = *(memory_data + *rs1 + imm);
+            *rd = read_data_byte(memory, *rs1 + imm);
             break;
 
         case lhu:
@@ -308,7 +315,8 @@ int step() {
                 show_error("Invalid Memory Access! line %d attempted to read hword at 0x%08lX", pc/4, (*rs1 + imm));
                 return 3;
             }
-            *rs1 = *(uint16_t*)(memory_data + *rs1 + imm);
+            // *rs1 = *(uint16_t*)(memory_data + *rs1 + imm);
+            *rd = read_data_halfword(memory, *rs1 + imm);
             break;
 
         case lwu:
@@ -316,7 +324,8 @@ int step() {
                 show_error("Invalid Memory Access! line %d attempted to read word at 0x%08lX", pc/4, (*rs1 + imm));
                 return 3;
             }
-            *rs1 = *(uint32_t*)(memory_data + *rs1 + imm);
+            // *rs1 = *(uint32_t*)(memory_data + *rs1 + imm);
+            *rd = read_data_word(memory, *rs1 + imm);
             break;
 
         case sb:
@@ -329,7 +338,8 @@ int step() {
                 show_error("Invalid Memory Access! line %d attempted to write byte at 0x%08lX, smc is not enabled.", pc/4, (*rs1 + imm));
                 return 3;
             }
-            memcpy(memory_data + *rs1 + imm, rs2, 1);
+            write_data_byte(memory, *rs1 + imm, *rs2);
+            // memcpy(memory_data + *rs1 + imm, rs2, 1);
             break;
 
         case sh:
@@ -342,7 +352,8 @@ int step() {
                 show_error("Invalid Memory Access! line %d attempted to write hword at 0x%08lX, smc is not enabled.", pc/4, (*rs1 + imm));
                 return 3;
             }
-            memcpy(memory_data + *rs1 + imm, rs2, 2);
+            write_data_halfword(memory, *rs1 + imm, *rs2);
+            // memcpy(memory_data + *rs1 + imm, rs2, 2);
             break;
         
         case sw:
@@ -355,7 +366,8 @@ int step() {
                 show_error("Invalid Memory Access! line %d attempted to write word at 0x%08lX, smc is not enabled.", pc/4, (*rs1 + imm));
                 return 3;
             }
-            memcpy(memory_data + *rs1 + imm, rs2, 4);
+            write_data_word(memory, *rs1 + imm, *rs2);
+            // memcpy(memory_data + *rs1 + imm, rs2, 4);
             break;
         
         case sd:
@@ -368,7 +380,8 @@ int step() {
                 show_error("Invalid Memory Access! line %d attempted to write dword at 0x%08lX, smc is not enabled.", pc/4, (*rs1 + imm));
                 return 3;
             }
-            memcpy(memory_data + *rs1 + imm, rs2, 8);
+            write_data_doubleword(memory, *rs1 + imm, *rs2);
+            // memcpy(memory_data + *rs1 + imm, rs2, 8);
             break;
 
         case beq:

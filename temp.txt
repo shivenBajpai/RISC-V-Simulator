@@ -13,12 +13,15 @@ cache sim dump: DONE
 
 cache sim stats: DONE
 
-actual cache functionality: PENDING
+actual cache functionality: DONE
 
 cache.output: pending
+
+rigorous testing: pending
 
 # Plan of actions
 
 - After that we can implement functionality
 - After that we can implement access trace 
 - After that we prettify the cache table
+- Gotta change tag display and dump to not be 64 bit always

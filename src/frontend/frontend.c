@@ -29,6 +29,7 @@ static int aux_scroll=0;
 static int cache_scroll=0;
 static int lines_of_code=0;
 static char* last_command = NULL;       // Relating to the input line at the bottom
+static size_t  last_command_len = 0;
 static char* input_buffer = NULL;       
 static size_t input_buffer_len;
 static size_t input_buffer_size;
@@ -376,7 +377,7 @@ void write_cache(int x, int y, int w, int h) {
             i/memory->cache_config.associativity,
             memory->cache[i*memory->masks.block_offset]&VALID?1:0,
             memory->cache[i*memory->masks.block_offset]&DIRTY?1:0,
-            *(uint64_t*) (memory->cache+(i*memory->masks.block_offset+1)));
+            *(uint64_t*) (memory->cache+(i*memory->masks.block_offset)+1));
         // mvprintw(y+4+v_offset, x+2+h_offset," 0x%02lx %d %d 0x%016lx", 1, 1, 0, 128);
 
         // for (int j=0; j<memory->cache_config.associativity; j++) {
@@ -551,6 +552,14 @@ Command frontend_update() {
 
 
     if (input == KEY_UP) {
+        // if (mouse.y>input_root_y) {
+        //     printf("chk\n");
+        //     if (!show_error && !strcmp(input_buffer, "$") && last_command_len != 0) {
+        //         printf("trig\n");
+        //         strcpy(input_buffer, last_command);
+        //         input_buffer_len = last_command_len;
+        //     }
+        // } else 
         if (mouse.x<columns/2) code_scroll = code_scroll==0?code_scroll:code_scroll-1;
         else if (showing_cache) {if (mouse.y<cache_stats_root_y) cache_scroll = cache_scroll==0?cache_scroll:cache_scroll-1;}
         else if (mouse.x<3*columns/4) {
@@ -654,7 +663,7 @@ Command frontend_update() {
 
         input_buffer[0] = '$';
         input_buffer[1] = '\0';
-        int last_command_len = input_buffer_len;
+        last_command_len = input_buffer_len;
         input_buffer_len = 1;
 
         if (!strncmp("$load ", last_command, 6)) {

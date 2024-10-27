@@ -14,7 +14,7 @@ Memory* new_vmem(CacheConfig cache_config) {
 
         mem->masks.offset = (cache_config.block_size - 1);
         mem->masks.index = (cache_config.n_lines - 1) * cache_config.block_size;
-        mem->masks.tag = -1 & !mem->masks.index & mem->masks.offset;
+        mem->masks.tag = ~0 & ~mem->masks.index & ~mem->masks.offset;
         mem->masks.data_offset = sizeof(uint8_t) + sizeof(uint64_t);
         mem->masks.timestamp_offset = mem->masks.data_offset + sizeof(uint64_t);
     } else {
@@ -32,20 +32,29 @@ Memory* new_vmem(CacheConfig cache_config) {
     return mem;
 }
 
-uint8_t* find_or_replace(Memory* mem, uint64_t addr, bool allocate) {
+void reset_cache(Memory* memory) {
+    memset(memory->cache, 0,memory->cache_config.n_blocks*memory->masks.block_offset);
+    memory->cache_stats.access_count =0;
+    memory->cache_stats.hit_count = 0;
+    memory->cache_stats.miss_count = 0;
+    memory->cache_stats.hit_rate = 0;
+    memory->cache_stats.writebacks = 0;
+}
+
+uint8_t* find_or_replace_data_line(Memory* mem, uint64_t addr, bool allocate) {
     int victim = -1;
     
     mem->cache_stats.access_count += 1;
 
     uint64_t offset = addr & mem->masks.offset;
-    uint64_t index = addr & mem->masks.index;
-    uint64_t tag = addr & mem->masks.offset;
+    uint64_t index = (addr & mem->masks.index) / mem->cache_config.block_size;
+    uint64_t tag = addr & mem->masks.tag;
     
-    uint8_t* line_ptr = mem->cache + mem->masks.block_offset * index * mem->cache_config.associativity;
+    uint8_t* line_ptr = mem->cache + (mem->masks.block_offset * index * mem->cache_config.associativity);
 
     for (int i=0; i<mem->cache_config.associativity; i++) {
         if (!(line_ptr[i*mem->masks.block_offset] & VALID)) {
-            victim = i; 
+            if (victim == -1) victim = i; 
             continue;
         }
         if (*(uint64_t*)(line_ptr + i*mem->masks.block_offset +1) != tag) continue;
@@ -53,7 +62,7 @@ uint8_t* find_or_replace(Memory* mem, uint64_t addr, bool allocate) {
         // Hit!
         mem->cache_stats.hit_count += 1;
         if (mem->cache_config.replacement_policy == LRU) *(line_ptr + i*mem->masks.block_offset + mem->masks.timestamp_offset) = time(NULL);
-        return (line_ptr + i*mem->masks.block_offset + mem->masks.data_offset + offset);
+        return (line_ptr + i*mem->masks.block_offset + mem->masks.data_offset);
     }
 
     mem->cache_stats.miss_count += 1;
@@ -62,7 +71,7 @@ uint8_t* find_or_replace(Memory* mem, uint64_t addr, bool allocate) {
     if (victim == -1) {
         switch (mem->cache_config.replacement_policy) {
             case RANDOM:
-                victim = rand() | (mem->cache_config.associativity -1);
+                victim = rand() & (mem->cache_config.associativity -1);
                 break;
             
             case FIFO:
@@ -92,50 +101,197 @@ uint8_t* find_or_replace(Memory* mem, uint64_t addr, bool allocate) {
     *line_ptr = VALID;
     *(uint64_t*)(line_ptr+1) = tag;
     memcpy(line_ptr+mem->masks.data_offset, mem->data+(addr&~mem->masks.offset), mem->cache_config.block_size);
-    *(line_ptr + mem->masks.timestamp_offset) = time(NULL);
+    if (mem->cache_config.replacement_policy != RANDOM) *(line_ptr + mem->masks.timestamp_offset) = time(NULL);
 
-    return (line_ptr + mem->masks.data_offset + offset);
+    return (line_ptr + mem->masks.data_offset);
 }
 
 uint8_t read_data_byte(Memory* mem, uint64_t addr) {
     if (!mem->cache) return mem->data[addr];
 
-    uint8_t* block_ptr = find_or_replace(mem, addr, true);
+    uint8_t* block_ptr = find_or_replace_data_line(mem, addr, true);
     
-    mem->cache_stats.hit_rate = mem->cache_stats.hit_count/mem->cache_stats.access_count;
-    return *(block_ptr + mem->masks.data_offset + (addr & mem->masks.offset) );
+    mem->cache_stats.hit_rate = (double) mem->cache_stats.hit_count/mem->cache_stats.access_count;
+    return *(block_ptr + (addr & mem->masks.offset) );
 }
 
-// uint16_t read_data_halfword(Memory* mem, uint16_t addr) {
-//     if (!mem->cache) return *(uint16_t*) (mem->data + addr);
+uint16_t read_data_halfword(Memory* mem, uint64_t addr) {
+    if (!mem->cache) return *(uint16_t*) (mem->data + addr);
 
-//     uint8_t* block_ptr = find_or_replace(mem, addr, true);
+    uint8_t* block_ptr = find_or_replace_data_line(mem, addr, true);
+    uint64_t block_addr = addr & ~mem->masks.offset;
+    uint64_t curr_addr = block_addr;
+    uint16_t result = *(block_ptr+ (addr & mem->masks.offset));
 
-// }
+
+    for (int i=1; i<2; i++) {
+        curr_addr = (addr+i) & ~mem->masks.offset;
+        if (block_addr != curr_addr) {
+            block_ptr = find_or_replace_data_line(mem, addr+i, true);
+            block_addr = curr_addr;
+        };
+
+        result += ((uint16_t) *(block_ptr+((addr+i) & mem->masks.offset))) << (8*i);
+    }
+
+    mem->cache_stats.hit_rate = (double) mem->cache_stats.hit_count/mem->cache_stats.access_count;
+    return result;
+}
+
+uint32_t read_data_word(Memory* mem, uint64_t addr) {
+    if (!mem->cache) return *(uint32_t*) (mem->data + addr);
+    
+    uint8_t* block_ptr = find_or_replace_data_line(mem, addr, true);
+    uint64_t block_addr = addr & ~mem->masks.offset;
+    uint64_t curr_addr = block_addr;
+    uint32_t result = *(block_ptr + (addr & mem->masks.offset));
+
+    for (int i=1; i<4; i++) {
+        curr_addr = (addr+i) & ~mem->masks.offset;
+        if (block_addr != curr_addr) {
+            block_ptr = find_or_replace_data_line(mem, addr+i, true);
+            block_addr = curr_addr;
+        };
+
+        result += ((uint32_t) *(block_ptr+((addr+i) & mem->masks.offset))) << (8*i);
+    }
+
+    mem->cache_stats.hit_rate = (double) mem->cache_stats.hit_count/mem->cache_stats.access_count;
+    return result;
+}
+
+uint64_t read_data_doubleword(Memory* mem, uint64_t addr) {
+    if (!mem->cache) return *(uint64_t*) (mem->data + addr);
+    
+    uint8_t* block_ptr = find_or_replace_data_line(mem, addr, true);
+    uint64_t block_addr = addr & ~mem->masks.offset;
+    uint64_t curr_addr = block_addr;
+    uint64_t result = *(block_ptr + (addr & mem->masks.offset));
+
+    for (int i=1; i<8; i++) {
+        curr_addr = (addr+i) & ~mem->masks.offset;
+        if (block_addr != curr_addr) {
+            block_ptr = find_or_replace_data_line(mem, addr+i, true);
+            block_addr = curr_addr;
+        };
+
+        result += (uint64_t) *(block_ptr+((addr+i) & mem->masks.offset)) << (8*i);
+    }
+
+    mem->cache_stats.hit_rate = (double) mem->cache_stats.hit_count/mem->cache_stats.access_count;
+    return result;
+}
 
 void write_data_byte(Memory* mem, uint64_t addr, uint8_t data) {
     if (!mem->cache) mem->data[addr] = data;
 
-    uint8_t* block_ptr = find_or_replace(mem, addr, mem->cache_config.write_allocate);
+    uint8_t* block_ptr = find_or_replace_data_line(mem, addr, mem->cache_config.write_allocate);
 
-    switch (mem->cache_config.write_policy) {
-        case WriteThrough:
-            mem->data[addr] = data;
-            mem->cache_stats.writebacks += 1;
-            if (block_ptr) *(block_ptr + mem->masks.data_offset + (addr & mem->masks.offset)) = data;
+    // switch (mem->cache_config.write_policy) {
+    //     case WriteThrough:
+    //         mem->data[addr] = data;
+    //         mem->cache_stats.writebacks += 1;
+    //         if (block_ptr) *(block_ptr + mem->masks.data_offset + (addr & mem->masks.offset)) = data;
 
-        case WriteBack:
-            if (block_ptr) {
-                *(block_ptr) |= DIRTY;
-                *(block_ptr + mem->masks.data_offset + (addr & mem->masks.offset)) = data;
-            } else {
-                mem->data[addr] = data;
-                mem->cache_stats.writebacks += 1;
-            }
-            break;
+    //     case WriteBack:
+    //         if (block_ptr) {
+    //             *(block_ptr) |= DIRTY;
+    //             *(block_ptr + mem->masks.data_offset + (addr & mem->masks.offset)) = data;
+    //         } else {
+    //             mem->data[addr] = data;
+    //             mem->cache_stats.writebacks += 1;
+    //         }
+    //         break;
+    // }
+
+    if (!block_ptr || mem->cache_config.write_policy == WriteThrough) {
+        mem->data[addr] = data;
+        mem->cache_stats.writebacks += 1;
     }
 
-    mem->cache_stats.hit_rate = mem->cache_stats.hit_count/mem->cache_stats.access_count;
+    if (mem->cache_config.write_policy == WriteBack) *(block_ptr-mem->masks.data_offset) |= DIRTY;
+
+    if (block_ptr) *(block_ptr + (addr & mem->masks.offset)) = data;
+
+    mem->cache_stats.hit_rate = (double) mem->cache_stats.hit_count/mem->cache_stats.access_count;
+}
+
+void write_data_halfword(Memory* mem, uint64_t addr, uint16_t data) {
+    if (!mem->cache) *(uint16_t*) (mem->data+addr) = data;
+
+    uint8_t* block_ptr = NULL;
+    uint64_t block_addr = mem->masks.offset;
+    uint64_t curr_addr;
+
+    if (mem->cache_config.write_policy == WriteThrough) mem->cache_stats.writebacks += 1;
+
+    for (int i=0; i<2; i++) {
+        curr_addr = (addr+i) & ~mem->masks.offset;
+        if (block_addr != curr_addr) {
+            block_ptr = find_or_replace_data_line(mem, addr+i, mem->cache_config.write_allocate);
+            block_addr = curr_addr;
+            if (mem->cache_config.write_policy == WriteBack) *(block_ptr-mem->masks.data_offset) |= DIRTY;
+            if (!block_ptr && mem->cache_config.write_policy != WriteThrough) mem->cache_stats.writebacks += 1;
+        };
+
+        if (!block_ptr || mem->cache_config.write_policy == WriteThrough) mem->data[addr] = (uint8_t) (data >> (8*i));
+
+        if (block_ptr) *(block_ptr + ((addr+i) & mem->masks.offset)) = (uint8_t) (data >> (8*i));
+    }
+
+    mem->cache_stats.hit_rate = (double) mem->cache_stats.hit_count/mem->cache_stats.access_count;
+}
+
+void write_data_word(Memory* mem, uint64_t addr, uint32_t data) {
+    if (!mem->cache) *(uint32_t*) (mem->data+addr) = data;
+
+    uint8_t* block_ptr = NULL;
+    uint64_t block_addr = mem->masks.offset;
+    uint64_t curr_addr;
+
+    if (mem->cache_config.write_policy == WriteThrough) mem->cache_stats.writebacks += 1;
+
+    for (int i=0; i<4; i++) {
+        curr_addr = (addr+i) & ~mem->masks.offset;
+        if (block_addr != curr_addr) {
+            block_ptr = find_or_replace_data_line(mem, addr+i, mem->cache_config.write_allocate);
+            block_addr = curr_addr;
+            if (mem->cache_config.write_policy == WriteBack) *(block_ptr-mem->masks.data_offset) |= DIRTY;
+            if (!block_ptr && mem->cache_config.write_policy != WriteThrough) mem->cache_stats.writebacks += 1;
+        };
+
+        if (!block_ptr || mem->cache_config.write_policy == WriteThrough) mem->data[addr] = (uint8_t) (data >> (8*i));
+
+        if (block_ptr) *(block_ptr + ((addr+i) & mem->masks.offset)) = (uint8_t) (data >> (8*i));
+    }
+
+    mem->cache_stats.hit_rate = (double) mem->cache_stats.hit_count/mem->cache_stats.access_count;
+}
+
+void write_data_doubleword(Memory* mem, uint64_t addr, uint64_t data) {
+    if (!mem->cache) *(uint64_t*) (mem->data+addr) = data;
+
+    uint8_t* block_ptr = NULL;
+    uint64_t block_addr = mem->masks.offset;
+    uint64_t curr_addr;
+
+    if (mem->cache_config.write_policy == WriteThrough) mem->cache_stats.writebacks += 1;
+
+    for (int i=0; i<8; i++) {
+        curr_addr = (addr+i) & ~mem->masks.offset;
+        if (block_addr != curr_addr) {
+            block_ptr = find_or_replace_data_line(mem, addr+i, mem->cache_config.write_allocate);
+            block_addr = curr_addr;
+            if (mem->cache_config.write_policy == WriteBack) *(block_ptr-mem->masks.data_offset) |= DIRTY;
+            if (!block_ptr && mem->cache_config.write_policy != WriteThrough) mem->cache_stats.writebacks += 1;
+        };
+
+        if (!block_ptr || mem->cache_config.write_policy == WriteThrough) mem->data[addr] = (uint8_t) (data >> (8*i));
+
+        if (block_ptr) *(block_ptr + ((addr+i) & mem->masks.offset)) = (uint8_t) (data >> (8*i));
+    }
+
+    mem->cache_stats.hit_rate = (double) mem->cache_stats.hit_count/mem->cache_stats.access_count;
 }
 
 void invalidate_cache(Memory* memory) {
@@ -151,9 +307,9 @@ void dump_cache(Memory* memory, FILE* f) {
     uint8_t* cache_ptr = memory->cache;
 
     for (int i=0; i<memory->cache_config.n_blocks; i++) {
-        if (!(*(cache_ptr) & VALID)) return;
-
-        fprintf(f, "Set: 0x%02lx, Tag: 0x%016lx, %s\n", i/memory->cache_config.associativity, *(uint64_t*) (cache_ptr+1), *cache_ptr&DIRTY?"Dirty":"Clean");
+        if ((*cache_ptr & VALID)) 
+            fprintf(f, "Set: 0x%02lx, Tag: 0x%016lx, %s\n", i/memory->cache_config.associativity, *(uint64_t*) (cache_ptr+1), *cache_ptr&DIRTY?"Dirty":"Clean");;
+        
         cache_ptr += memory->masks.block_offset;
     };
 }
@@ -191,7 +347,7 @@ CacheConfig read_cache_config(FILE* fp) {
 
     config.n_lines = size/(config.block_size*config.associativity);
     
-    if (config.n_lines==0) {
+    if (config.n_lines==0 || size <= 8) {
         show_error("Cache size too small!");
         return config;
     }
