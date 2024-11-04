@@ -23,13 +23,31 @@ typedef enum WritePolicy {
     WriteBack
 } WritePolicy;
 
+// typedef enum Cache_Byte_State {
+//     NORMAL=0,
+//     HIT=1,
+//     MISS=2,
+//     DIRTY_NORMAL=3,
+//     DIRTY_HIT=4,
+//     DIRTY_MISS=5,
+// } Cache_Byte_State;
+
+// typedef struct CacheDebugInfo {
+//     size_t last_update;
+//     size_t last_update_size;
+//     Cache_Byte_State* info_table;
+// } CacheDebugInfo;
+
 typedef struct CacheConfig {
     uint64_t n_lines;
     uint64_t n_blocks;
-    uint64_t block_size;
+    uint64_t block_size; 
     uint64_t associativity;
+    uint64_t tag_shift;
     ReplacementPolicy replacement_policy;
     WritePolicy write_policy;
+    FILE* trace_file;
+    char trace_file_name[50];
     bool write_allocate;
     bool has_cache;
 } CacheConfig;
@@ -55,6 +73,7 @@ typedef struct Memory {
     CacheConfig cache_config;
     CacheStats cache_stats;
     CacheMasks masks;
+    // CacheDebugInfo debug_info;
     uint8_t* cache;
     uint8_t data[MEMORY_SIZE]; 
 } Memory;

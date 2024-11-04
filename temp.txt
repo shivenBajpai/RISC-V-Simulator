@@ -24,4 +24,17 @@ rigorous testing: pending
 - After that we can implement functionality
 - After that we can implement access trace 
 - After that we prettify the cache table
-- Gotta change tag display and dump to not be 64 bit always
+- Gotta change tag display and trace and dump to not be 64 bit always
+
+# New todo:
+
+# Things that need testing (use valgrind while testing):
+
+- Stats seem to be doing good
+- Replacement policy is a completely untested.
+- WB on replace testing
+
+Then
+- Deal with why the display tags are off
+- Deal with cache.output file names
+- Deal with cache line becomeing dirty after writing it to trace (new param)

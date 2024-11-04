@@ -372,12 +372,15 @@ void write_cache(int x, int y, int w, int h) {
     
     // printf("%d %d %d\n", w, h_offset, x+2+h_offset);
     // return;
+
+    mvprintw(y+2+v_offset, x+2+h_offset," Set  V D         Tag       Data");
+
     for (int i=cache_scroll; i<last_line; i++) {
         mvprintw(y+4+v_offset, x+2+h_offset," 0x%02lx %d %d 0x%016lx",
             i/memory->cache_config.associativity,
             memory->cache[i*memory->masks.block_offset]&VALID?1:0,
             memory->cache[i*memory->masks.block_offset]&DIRTY?1:0,
-            *(uint64_t*) (memory->cache+(i*memory->masks.block_offset)+1));
+            (*(uint64_t*) (memory->cache+(i*memory->masks.block_offset)+1)));
         // mvprintw(y+4+v_offset, x+2+h_offset," 0x%02lx %d %d 0x%016lx", 1, 1, 0, 128);
 
         // for (int j=0; j<memory->cache_config.associativity; j++) {
