@@ -1,3 +1,7 @@
+#ifndef _POSIX_C_SOURCE
+#define _POSIX_C_SOURCE 199309L
+#endif
+
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -104,6 +108,10 @@ int main(int* argc, char** argv) {
 				}
 				
 				// Else, update state
+				strcpy(active_file, input_file);
+				active_file[strlen(active_file)-2] = '\0';
+				snprintf(cache_config.trace_file_name, 300, "%s.output", active_file);
+
 				if (index_of_labels) free_label_index(index_of_labels);
 				index_of_labels = new_index_of_labels;
 

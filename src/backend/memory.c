@@ -3,6 +3,17 @@
 #include "string.h"
 #include "math.h"
 #include "../frontend/frontend.h"
+#include "../globals.h" 
+
+#define SEC_TO_NS(sec) ((sec)*1000000000)
+
+uint64_t nanos()
+{
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
+    uint64_t ns = SEC_TO_NS((uint64_t)ts.tv_sec) + (uint64_t)ts.tv_nsec;
+    return ns;
+}
 
 static bool last_acc_hit = false;
 
@@ -46,7 +57,7 @@ void reset_cache(Memory* memory) {
     memory->cache_stats.writebacks = 0;
 }
 
-uint8_t* find_or_replace_data_line(Memory* mem, uint64_t addr, bool allocate, bool read) {
+uint8_t* find_or_replace_data_line(Memory* mem, uint64_t addr, bool allocate, bool read, bool override_dirty) {
     int victim = -1;
     
     mem->cache_stats.access_count += 1;
@@ -67,13 +78,13 @@ uint8_t* find_or_replace_data_line(Memory* mem, uint64_t addr, bool allocate, bo
         // Hit!
         mem->cache_stats.hit_count += 1;
         if (mem->cache_config.replacement_policy == LRU) *(line_ptr + i*mem->masks.block_offset + mem->masks.timestamp_offset) = time(NULL);
-        fprintf(mem->cache_config.trace_file, "%c: Address: 0x%lx, Set: 0x%lx, Hit, Tag: 0x%lx, %s\n", read?'R':'W', addr, index, tag/mem->cache_config.block_size/mem->cache_config.n_lines, (line_ptr[i*mem->masks.block_offset]&DIRTY)==DIRTY?"Dirty":"Clean");
+        fprintf(mem->cache_config.trace_file, "%c: Address: 0x%lx, Set: 0x%lx, Hit, Tag: 0x%lx, %s\n", read?'R':'W', addr, index, tag/mem->cache_config.block_size/mem->cache_config.n_lines, (line_ptr[i*mem->masks.block_offset]&DIRTY)==DIRTY||override_dirty?"Dirty":"Clean");
         return (line_ptr + i*mem->masks.block_offset + mem->masks.data_offset);
     }
 
     mem->cache_stats.miss_count += 1;
     if (!allocate) {
-        fprintf(mem->cache_config.trace_file, "%c: Address: 0x%lx, Set: 0x%lx, Miss, Tag: 0x%lx, %s\n", read?'R':'W', addr, index, tag/mem->cache_config.block_size/mem->cache_config.n_lines, "Clean"); // TODO: WTF do i do here
+        fprintf(mem->cache_config.trace_file, "%c: Address: 0x%lx, Set: 0x%lx, Miss, Tag: 0x%lx, %s\n", read?'R':'W', addr, index, tag/mem->cache_config.block_size/mem->cache_config.n_lines, "Clean");
         return NULL;
     }
 
@@ -86,12 +97,12 @@ uint8_t* find_or_replace_data_line(Memory* mem, uint64_t addr, bool allocate, bo
             case FIFO:
             case LRU:
                 uint64_t earliest_time = *(line_ptr+mem->masks.timestamp_offset);
-                int replacement_index = 0;
+                victim = 0;
 
                 for (int i=1; i<mem->cache_config.associativity; i++) {
                     if (line_ptr[i*mem->masks.block_offset + mem->masks.timestamp_offset] < earliest_time) {
                         earliest_time = line_ptr[i*mem->masks.block_offset + mem->masks.timestamp_offset];
-                        replacement_index = i;
+                        victim = i;
                     }
                 }
                 break;                
@@ -101,7 +112,7 @@ uint8_t* find_or_replace_data_line(Memory* mem, uint64_t addr, bool allocate, bo
     line_ptr += victim*mem->masks.block_offset;
 
     if ((*line_ptr & VALID) && (*line_ptr & DIRTY) && mem->cache_config.write_policy == WriteBack) {
-        uint64_t ret_addr = *(uint64_t*) (line_ptr+1) | index;
+        uint64_t ret_addr = *(uint64_t*) (line_ptr+1) | (addr & mem->masks.index);
         memcpy(mem->data+ret_addr, line_ptr + mem->masks.data_offset, mem->cache_config.block_size);
         memcpy(line_ptr + mem->masks.data_offset, mem->data+(addr&~mem->masks.offset), mem->cache_config.block_size);
         mem->cache_stats.writebacks += 1;
@@ -112,7 +123,7 @@ uint8_t* find_or_replace_data_line(Memory* mem, uint64_t addr, bool allocate, bo
     memcpy(line_ptr+mem->masks.data_offset, mem->data+(addr&~mem->masks.offset), mem->cache_config.block_size);
     if (mem->cache_config.replacement_policy != RANDOM) *(line_ptr + mem->masks.timestamp_offset) = time(NULL);
 
-    fprintf(mem->cache_config.trace_file, "%c: Address: 0x%lx, Set: 0x%lx, Miss, Tag: 0x%lx, %s\n", read?'R':'W', addr, index, tag/mem->cache_config.block_size/mem->cache_config.n_lines, (*line_ptr&DIRTY)==DIRTY?"Dirty":"Clean");
+    fprintf(mem->cache_config.trace_file, "%c: Address: 0x%lx, Set: 0x%lx, Miss, Tag: 0x%lx, %s\n", read?'R':'W', addr, index, tag/mem->cache_config.block_size/mem->cache_config.n_lines, (*line_ptr&DIRTY)==DIRTY||override_dirty?"Dirty":"Clean");
     return (line_ptr + mem->masks.data_offset);
 }
 
@@ -120,7 +131,7 @@ uint8_t read_data_byte(Memory* mem, uint64_t addr) {
     if (!mem->cache) return mem->data[addr];
     
 
-    uint8_t* block_ptr = find_or_replace_data_line(mem, addr, true, true);
+    uint8_t* block_ptr = find_or_replace_data_line(mem, addr, true, true, false);
     
     mem->cache_stats.hit_rate = (double) mem->cache_stats.hit_count/mem->cache_stats.access_count;
     return *(block_ptr + (addr & mem->masks.offset) );
@@ -130,7 +141,7 @@ uint16_t read_data_halfword(Memory* mem, uint64_t addr) {
     if (!mem->cache) return *(uint16_t*) (mem->data + addr);
     
 
-    uint8_t* block_ptr = find_or_replace_data_line(mem, addr, true, true);
+    uint8_t* block_ptr = find_or_replace_data_line(mem, addr, true, true, false);
     uint64_t block_addr = addr & ~mem->masks.offset;
     uint64_t curr_addr = block_addr;
     uint16_t result = *(block_ptr+ (addr & mem->masks.offset));
@@ -139,7 +150,7 @@ uint16_t read_data_halfword(Memory* mem, uint64_t addr) {
     for (int i=1; i<2; i++) {
         curr_addr = (addr+i) & ~mem->masks.offset;
         if (block_addr != curr_addr) {
-            block_ptr = find_or_replace_data_line(mem, addr+i, true, true);
+            block_ptr = find_or_replace_data_line(mem, addr+i, true, true, false);
             block_addr = curr_addr;
         };
 
@@ -154,7 +165,7 @@ uint32_t read_data_word(Memory* mem, uint64_t addr) {
     if (!mem->cache) return *(uint32_t*) (mem->data + addr);
     
     
-    uint8_t* block_ptr = find_or_replace_data_line(mem, addr, true, true);
+    uint8_t* block_ptr = find_or_replace_data_line(mem, addr, true, true, false);
     uint64_t block_addr = addr & ~mem->masks.offset;
     uint64_t curr_addr = block_addr;
     uint32_t result = *(block_ptr + (addr & mem->masks.offset));
@@ -162,7 +173,7 @@ uint32_t read_data_word(Memory* mem, uint64_t addr) {
     for (int i=1; i<4; i++) {
         curr_addr = (addr+i) & ~mem->masks.offset;
         if (block_addr != curr_addr) {
-            block_ptr = find_or_replace_data_line(mem, addr+i, true, true);
+            block_ptr = find_or_replace_data_line(mem, addr+i, true, true, false);
             block_addr = curr_addr;
         };
 
@@ -177,7 +188,7 @@ uint64_t read_data_doubleword(Memory* mem, uint64_t addr) {
     if (!mem->cache) return *(uint64_t*) (mem->data + addr);
     
     
-    uint8_t* block_ptr = find_or_replace_data_line(mem, addr, true, true);
+    uint8_t* block_ptr = find_or_replace_data_line(mem, addr, true, true, false);
     uint64_t block_addr = addr & ~mem->masks.offset;
     uint64_t curr_addr = block_addr;
     uint64_t result = *(block_ptr + (addr & mem->masks.offset));
@@ -185,7 +196,7 @@ uint64_t read_data_doubleword(Memory* mem, uint64_t addr) {
     for (int i=1; i<8; i++) {
         curr_addr = (addr+i) & ~mem->masks.offset;
         if (block_addr != curr_addr) {
-            block_ptr = find_or_replace_data_line(mem, addr+i, true, true);
+            block_ptr = find_or_replace_data_line(mem, addr+i, true, true, false);
             block_addr = curr_addr;
         };
 
@@ -197,10 +208,10 @@ uint64_t read_data_doubleword(Memory* mem, uint64_t addr) {
 }
 
 void write_data_byte(Memory* mem, uint64_t addr, uint8_t data) {
-    if (!mem->cache) mem->data[addr] = data;
+    if (!mem->cache) {mem->data[addr] = data; return;}
     
 
-    uint8_t* block_ptr = find_or_replace_data_line(mem, addr, mem->cache_config.write_allocate, false);
+    uint8_t* block_ptr = find_or_replace_data_line(mem, addr, mem->cache_config.write_allocate, false, true);
 
     // switch (mem->cache_config.write_policy) {
     //     case WriteThrough:
@@ -232,7 +243,7 @@ void write_data_byte(Memory* mem, uint64_t addr, uint8_t data) {
 }
 
 void write_data_halfword(Memory* mem, uint64_t addr, uint16_t data) {
-    if (!mem->cache) *(uint16_t*) (mem->data+addr) = data;
+    if (!mem->cache) {*(uint16_t*) (mem->data+addr) = data; return;}
     
 
     uint8_t* block_ptr = NULL;
@@ -244,13 +255,13 @@ void write_data_halfword(Memory* mem, uint64_t addr, uint16_t data) {
     for (int i=0; i<2; i++) {
         curr_addr = (addr+i) & ~mem->masks.offset;
         if (block_addr != curr_addr) {
-            block_ptr = find_or_replace_data_line(mem, addr+i, mem->cache_config.write_allocate, false);
+            block_ptr = find_or_replace_data_line(mem, addr+i, mem->cache_config.write_allocate, false, true);
             block_addr = curr_addr;
             if (mem->cache_config.write_policy == WriteBack) *(block_ptr-mem->masks.data_offset) |= DIRTY;
             if (!block_ptr && mem->cache_config.write_policy != WriteThrough) mem->cache_stats.writebacks += 1;
         };
 
-        if (!block_ptr || mem->cache_config.write_policy == WriteThrough) mem->data[addr] = (uint8_t) (data >> (8*i));
+        if (!block_ptr || mem->cache_config.write_policy == WriteThrough) mem->data[addr+i] = (uint8_t) (data >> (8*i));
 
         if (block_ptr) *(block_ptr + ((addr+i) & mem->masks.offset)) = (uint8_t) (data >> (8*i));
     }
@@ -259,7 +270,7 @@ void write_data_halfword(Memory* mem, uint64_t addr, uint16_t data) {
 }
 
 void write_data_word(Memory* mem, uint64_t addr, uint32_t data) {
-    if (!mem->cache) *(uint32_t*) (mem->data+addr) = data;
+    if (!mem->cache) {*(uint32_t*) (mem->data+addr) = data; return;}
     
 
     uint8_t* block_ptr = NULL;
@@ -271,13 +282,13 @@ void write_data_word(Memory* mem, uint64_t addr, uint32_t data) {
     for (int i=0; i<4; i++) {
         curr_addr = (addr+i) & ~mem->masks.offset;
         if (block_addr != curr_addr) {
-            block_ptr = find_or_replace_data_line(mem, addr+i, mem->cache_config.write_allocate, false);
+            block_ptr = find_or_replace_data_line(mem, addr+i, mem->cache_config.write_allocate, false, true);
             block_addr = curr_addr;
             if (mem->cache_config.write_policy == WriteBack) *(block_ptr-mem->masks.data_offset) |= DIRTY;
             if (!block_ptr && mem->cache_config.write_policy != WriteThrough) mem->cache_stats.writebacks += 1;
         };
 
-        if (!block_ptr || mem->cache_config.write_policy == WriteThrough) mem->data[addr] = (uint8_t) (data >> (8*i));
+        if (!block_ptr || mem->cache_config.write_policy == WriteThrough) mem->data[addr+i] = (uint8_t) (data >> (8*i));
 
         if (block_ptr) *(block_ptr + ((addr+i) & mem->masks.offset)) = (uint8_t) (data >> (8*i));
     }
@@ -286,7 +297,7 @@ void write_data_word(Memory* mem, uint64_t addr, uint32_t data) {
 }
 
 void write_data_doubleword(Memory* mem, uint64_t addr, uint64_t data) {
-    if (!mem->cache) *(uint64_t*) (mem->data+addr) = data;
+    if (!mem->cache) {*(uint64_t*) (mem->data+addr) = data; return;}
     
 
     uint8_t* block_ptr = NULL;
@@ -298,13 +309,13 @@ void write_data_doubleword(Memory* mem, uint64_t addr, uint64_t data) {
     for (int i=0; i<8; i++) {
         curr_addr = (addr+i) & ~mem->masks.offset;
         if (block_addr != curr_addr) {
-            block_ptr = find_or_replace_data_line(mem, addr+i, mem->cache_config.write_allocate, false);
+            block_ptr = find_or_replace_data_line(mem, addr+i, mem->cache_config.write_allocate, false, true);
             block_addr = curr_addr;
             if (mem->cache_config.write_policy == WriteBack) *(block_ptr-mem->masks.data_offset) |= DIRTY;
             if (!block_ptr && mem->cache_config.write_policy != WriteThrough) mem->cache_stats.writebacks += 1;
         };
 
-        if (!block_ptr || mem->cache_config.write_policy == WriteThrough) mem->data[addr] = (uint8_t) (data >> (8*i));
+        if (!block_ptr || mem->cache_config.write_policy == WriteThrough) mem->data[addr+i] = (uint8_t) (data >> (8*i));
 
         if (block_ptr) *(block_ptr + ((addr+i) & mem->masks.offset)) = (uint8_t) (data >> (8*i));
     }
@@ -395,7 +406,7 @@ CacheConfig read_cache_config(FILE* fp) {
     config.n_blocks = config.n_lines*config.associativity;
     config.has_cache = true;
     // config.tag_shift = log2(config.n_lines*config.block_size);
-    snprintf(config.trace_file_name, 50, "cache.output");
+    snprintf(config.trace_file_name, 300, "%s.output", active_file);
     return config;
 }
 

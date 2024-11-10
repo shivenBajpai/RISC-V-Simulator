@@ -365,27 +365,27 @@ void write_cache(int x, int y, int w, int h) {
     // 0x00 0 0 0x0000000000000000 44 18 32 54 23 53 34 
 
     int last_line = cache_scroll+h-6;
-    int max_bytes = (w<31+3*memory->cache_config.block_size)?(w-31)/3:memory->cache_config.block_size;
+    int max_bytes = (w<32+3*memory->cache_config.block_size)?(w-32)/3:memory->cache_config.block_size;
     int v_offset = 0;
-    int h_offset = (w - 31 - 3*max_bytes)/2;
+    int h_offset = (w - 32 - 3*max_bytes)/2;
     if (last_line > memory->cache_config.n_blocks) last_line = memory->cache_config.n_blocks;
     
     // printf("%d %d %d\n", w, h_offset, x+2+h_offset);
     // return;
 
-    mvprintw(y+2+v_offset, x+2+h_offset," Set  V D         Tag       Data");
+    mvprintw(y+2+v_offset, x+2+h_offset," Set  V D         Tag        Data");
 
     for (int i=cache_scroll; i<last_line; i++) {
         mvprintw(y+4+v_offset, x+2+h_offset," 0x%02lx %d %d 0x%016lx",
             i/memory->cache_config.associativity,
             memory->cache[i*memory->masks.block_offset]&VALID?1:0,
             memory->cache[i*memory->masks.block_offset]&DIRTY?1:0,
-            (*(uint64_t*) (memory->cache+(i*memory->masks.block_offset)+1)));
+            (*(uint64_t*) (memory->cache+(i*memory->masks.block_offset)+1))/memory->cache_config.block_size/memory->cache_config.n_lines);
         // mvprintw(y+4+v_offset, x+2+h_offset," 0x%02lx %d %d 0x%016lx", 1, 1, 0, 128);
 
         // for (int j=0; j<memory->cache_config.associativity; j++) {
         for (int j=0; j<max_bytes; j++) {
-            mvprintw(y+4+v_offset, x+29+h_offset+3*j, " %02x", memory->cache[i*memory->masks.block_offset+memory->masks.data_offset+j]);
+            mvprintw(y+4+v_offset, x+30+h_offset+3*j, " %02x", memory->cache[i*memory->masks.block_offset+memory->masks.data_offset+j]);
             // mvprintw(y+4+v_offset, x+29+h_offset+3*j, " %02x", 64);
         }
         

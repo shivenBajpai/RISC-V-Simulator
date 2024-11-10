@@ -1,6 +1,10 @@
 #ifndef MEMORY_H
 #define MEMORY_H
 
+#ifndef _POSIX_C_SOURCE
+#define _POSIX_C_SOURCE 199309L
+#endif
+
 #include "stdint.h"
 #include "stdbool.h"
 #include "stdlib.h"
@@ -47,7 +51,7 @@ typedef struct CacheConfig {
     ReplacementPolicy replacement_policy;
     WritePolicy write_policy;
     FILE* trace_file;
-    char trace_file_name[50];
+    char trace_file_name[300];
     bool write_allocate;
     bool has_cache;
 } CacheConfig;

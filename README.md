@@ -54,7 +54,7 @@ A more detailed report on the design and features of this simulator is present i
 |   +-- backend                         (implementation of the simulator)
 |   |   +-- backend.c
 |   |   +-- backend.h
-|   |   +-- memory.c
+|   |   +-- memory.c                    (implementation of cache)
 |   |   +-- memory.h
 |   |   +-- stacktrace.c
 |   |   +-- stacktrace.h
