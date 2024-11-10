@@ -15,7 +15,7 @@
 	\bibliographystyle{IEEEtran}
 	\vspace{3cm}
 
-	\title{CS2323 - Lab 4 - RISC V Simulator}
+	\title{CS2323 - Lab 7 - RISC V Cache Simulator}
 	\author{Shiven Bajpai - AI24BTECH11030}
 
 	\maketitle
@@ -29,118 +29,43 @@
 
 	\section{Preface}
 	
-	The objective of this lab project was to extend the RISC-V assembler made in the previous lab project by making a Simulator that can run said code. I chose to add some additional flair to this project in the form of a Text-UI built using the ncurses terminal control library. The full features of my simluator are as follows
+	The objective of this lab project was to extend the RISC-V simulator made in Lab 4 by adding the ability to simulate caches. Since my simulator already has a GUI, I took the liberty to make a window that allows you to see the cache contents.
 
-	\begin{itemize}
-		\item Visual representation of assembled and source code next to each other, sectioned by labels. The current line being executed is highlighted.
-
-		\item Live view of registers that can be seen while running or stepping, with a live highlighting of the last change to register file.
-		
-		\item User can view the state of the memory that updates live as the program runs
-		
-		\item The user can specify breakpoints explicity using the \verb|break| command, or breakpoints can be implied using the \verb|ebreak| instruction, in either case the program stops execution at the breakpoint
-		
-		\item The simulator is built in a highly modular fashion. This means that the assembler, backend and frontend are largely interdependent, and only require a simple interface of a few functions to be exposed. So developing a new frontend (say a proper GUI) or a new simulator backend (Say a pipelined multi-stage processor implementation) can be done without having to make any significant changes to the rest of the project.
-		
-		\item Most errors are gracefully handled and shown within the TUI without exiting the program, so the user can recover from any mistakes and continue.
-		
-		\item There is an extra command beyond the requirements of the project called \verb|reset| that resets the simulator to its state when the file was initially loaded. This is useful because the only other way to reset would be to reload the file, which would override the set breakpoints. Using \verb|reset| means you do not lose any breakpoints, and re-compilation is also avoided.
-		
-		\item The program checks for Invalid memory access by the RISC-V instructions and ceases execution when such an instruction is encountered. Modifying the text section is normally not allowed, however if an experimental flag \verb|--self-modifying-code| is set then the simulator allows the program to write to the text section, thus allowing it to modify itself. Note that since the feature is experimental, the dissassembled representation is not guaranteed to be correct if this flag is specified, as that is read from the input file rather than being actual dissassembled code. The behaviour of the simulator in reponse to invalid instructions is also not defined.
-		
-		\item Has keyboard shortcuts for common actions
-
-		\item Lastly, although not a technical feature, the TUI gives it a cool hacker-esque vibe.
-	\end{itemize}
+	The Appendices of these report are just updated versions of those from the previous report
 	
-	The project was quite fun, I often found myself procrastinating on my other assignments by working on this project instead. I learnt quite a bit about ncurses and also C libraries in general as this was the first time I was using an external one. I would like to thank the professor for assigning such a fun and engaging project, but I do wish it had greater weightage in the final grade
+	\section{Implementation details}
 
-	\section{Overview}
+	\subsection{Overview of Changes}
 
-	\subsection{Breaking down the problem}
-
-	The simulator has four main parts. The assembler that is called when a file is loaded, The backend implementation that does the actual simulation, The Frontend that displays information and takes input from the user and the control code that coordinates these three and handles errors.
-
-	The overall program flow goes as follows,
-
-	\begin{itemize}
-		\item The program begins execution
-		\item The UI is initialized and various memory allocations are performed
-		\item The simulator waits for commands
-		\item If a load instruction is issued then it trys to assemble the input.
-		\item The simulator steps, runs and stops running the code as instructed. While the code runs, the frontend is continously updated.
-		\item If a new load command is issued, then the simulator once again tries to assemble this input and replaces the loaded code with the new code if successful.
-		\item If an exit command is recieved, It exits gracefully.
-	\end{itemize}
-
-	\subsection{Application is not responding!}
-
-	Before we can talk about the technical parts in more detail, we need to talk about something much more important. The UI here needs to remain responsive while the simulator is running. This means our program needs to be structured in a way such that it can asynchronously run the frontend and the backend. One such way to do this would be to make two threads. One for the frontend and the another for everything else. However in this project for the sake of simplicity, I have used a single thread and manually implemented a form of polling to keep the UI responsive.
-
-	\section{Adapting the assembler}
-
-	Several changes need to be made to the assembler made in the previous project to make it suitable for this project.
-
-	\begin{enumerate}
-		\item The main function needs to be adapted to take in buffers as arguments, instead of reading file names from command line arguments and opening them itself.
-		\item Similarly, all other functions will need to be adapted to use buffers instead of file pointers.
-		\item The main function will also need to be given pointers to where it can store objects with information such as label positions which was previously not required once the assembling process was done
-		\item An extra pre-processing step is required to read in the .data segment, and only pass on the .text segment to original first pass of the assembler. All error reporting needs to be updated to account for the line number offset due to the data segment. If no label like .text or .data is encountered, this step does nothing
-		\item All error reporting needs to be changed to use the \verb|show_error()| funtion defined in the frontend, instead of printing to stdout.
-	\end{enumerate}
-
-	Other than this, I updated the custom types \verb|struct label_index| and \verb|struct vec| to have some more utility functions. I also changed the type of the values stored in \verb|struct vec| to be \verb|uint64_t| instead of \verb|int| so that I can use it to store memory locations without any concerns of overflow.
-
-	\section{Writing the Backend}
+	For implementation I essentially just created a new \verb|struct Memory| type that encapsulated all the data and made a few accompanying functions to encapsulate all the complexity. This abstraction provided a nice API for the rest of the project that handled everything from reads/writes to cache config parsing and cache dumps. All the code for this is in \verb|memory.c|
 	
-	The simulator itself is relatively straightforward. It just has to load an instruction, decode it, and execute it. Then we increment the PC and done! The validity of instructions is already guaranteed by the compiler (provided the \verb|--self-modifying-code| flag is not set, but since it is just an experimental flag I decided not to implement instruction validation for it.)
-	
-	We can define the function that implements this process as the \verb|step()| and use it for the \verb|step| command. The \verb|run| command then can be implemented by simply calling \verb|step()| over and over again. Make an array to serve as the simulated memory and registers. Add a few conditions to test for breakpoints, invalid memory access, and PC being moved outside of the text segment and we're done.
+	The rest of the backend code only got minor changes where I changed memory accesses to use certain functions rather than directly reading/writing to the simulated memory buffer. Besides this there were a plethora of minor changes here and there to connect everything up.
 
-	The \verb|run()| function runs intructions only at a pace of about 5 per second. This is done using a timer and components from the builtin \verb|ftime| library. While waiting for the delay, the program keeps updating the frontend to ensure the application remains responsive. It checks between every frame if it is time to run the next instruction yet or not.
+	The frontend saw significant additions to add parsing for the all new commands and displaying the new Cache pane which replaces both the registers and the stack or memory (whichever is visible) altogether.
 
-	The implementation of the individual instructions and its parsing is done via a pair of large switch-case blocks. The details are trivial and I won't discuss it here.
+	\subsection{Cache Implementation}
 
-	To maintain a stacktrace, we create another \verb|struct vec|. At the start of the program, the location of the first instruction is pushed onto this stack. Whenever an instruction is executed, the line number of the last entry is updated.
-	Every time a jump instruction is taken, a new entry is pushed onto this stack and every time a \verb|jalr| instruction is encountered, an entry is popped off of the stack. Of course, this only works when jal and jalr are only used according to the convention and only for function calls.
+	The way the cache itself is implemented is that there is a single buffer in memory made up of multiple "blocks" made up of one byte for flags (Valid and Dirty), 8 bytes for Tag, <block size> bytes that store the data and then 8 more bytes for a timestamp if required by the replacement policy.
 
-	Implementing breakpoints is also trivial, We just maintain a list of all breakpoint positions. On every instructino execution, we check if the next instruction has a breakpoint on it. If it does, then we stop the execution loop.
+	The 8 bytes for a Tag may seem wasteful, but implementation wise It was easier to just have a field that could fit a \verb|uint64_t| and store the full address of the first byte of the block there. Any place where the tag needs to be shown, It gets shifted right to be the right size just before being displayed/output.
 
-	\section{Loading in a file}
+	The \verb|Memory| struct encapsulates a pointer to the main memory buffer, the aforementioned cache buffer, and 3 other structs: \verb|CacheMasks|, \verb|CacheStats|, \verb|CacheConfig|.
 
-	Loading in a file is a series of simple steps.
-	
-	\begin{enumerate}
-		\item Find the file, if not found, raise error
-		
-		\item Allocate buffers required to hold the results of assembly, Then transfer control to the assembler.
-		
-		\item If the assembler failed, report the error and abort. Otherwise, Reset the stack and breakpoints, Copy the output of the assembler into the simulated memory, Set the PC and the registers to 0. Pass the cleaned code to the frontend.
-		
-		\item If there is no label before the first, insert the label \verb|main| before the first line. Also remove any cases of multiple labels for the same line, keeping only the first.
-	\end{enumerate}
+	\verb|CacheConfig| contains all information about the cache from the config file passed when cache is enabled. It also has some other derived information like the pointer to the trace file, number of cache sets, etc. Everytime the backend is reset, the main control logic passes a new CacheConfig (possibly the same as last time) based on which the backend sets up its cache in memory.
 
-	Since the simulator described in the problem statement has no method to revert the simulator to how it was before execution, the user command \verb|load| would have to be used for this purpose. The problem with this is that it clears any breakpoints that are set, which may not be desired. It also reruns the assembler which is not necessary.
+	\verb|CacheMasks| Holds some useful precomputed bit masks and offsets that get used in many places in the code.
 
-	So I made another user command \verb|reset| that does the same things as \verb|load| with the differences that it a) does not clear the breakpoints set and b) does not recompile the code, instead using the output from the previous run of the assembler.
+	\verb|CacheStats| Contains all statistical information about the Cache like access count, hit rate, etc.
 
-	\section{Frontend}
+	Every time the memory is accessed, if cache is enabled then the read/write utility functions use the information in the \verb|CacheMasks| and \verb|CacheConfig| to find the data in the cache if present, Update the cache and memory as necessary, and then updated the \verb|CacheStats| as applicable.
 
-	The frontend is designed to adapt to the size of the terminal by using the size of the terminal window either directly or indirectly in all of the position calculations, If the window is too small to show what needs to be shown, It skips drawing that section until the window is resized.
+	The frontend reads directly from \verb|CacheStats| to display stats.
 
-	Since the frontend is not a part of the project requirements, I wont go into much detail on its implementation, But a brief description is as follows:
-
-	The frontend is made using the \verb|ncurses| terminal control library. The \verb|frontend_update()| is called regularly from the main loop to take input and redraw the screen.
-
-	Any command sent to the application is held by the frontend, as well as parsed and processed by the frontend itself, It is only passed to higher control code if it requires code execution outside the frontend (e.g the \verb|run| or \verb|break| commands). Commands such as \verb|mem| and \verb|regs| are handled by the frontend itself.
-
-	Any data that needs to be shown is read directly from the backend's copy of the same if possible. The top level control code is responsible for ensuring the pointers for the same are set correctly using a series of \verb|get_<>_pointer()| and \verb|set_<>_pointer()| functions exposed by both the frontend and the backend.
-
-	The "cleaned code" and index of labels that is created as an output of assembly process is used for the display of code divided into sections by labels in the Code pane. The calculation for the position of each line after taking into account sectioning due to labels is slightly complicated and would be inefficient to repeat on every draw of the frame, so all the positions are calculated only once when a file is loaded in and then re-used on every draw.
+	The cache invalidation and dumping commands are trivial loop operations.
 
 	\section{Testing}
 
-	For testing I used the sample cases given in the problem statement, along with a fibonacci calculation program, the program from GCD lab assignment and all testcases I had from my assembler. These are all available in the \verb|\test| directory. Additionally I used the open source tool \verb|valgrind| to search for memory bugs, It was a huge timesaver.
+	For testing, I used a few handwritten programs to test out the different Replacement Policies and to ensure that all the read and write instructions were working properly, and that writebacks were being handled correctly. Additionally I ran a random subset of the programs from Homework 4 and compared the stats reported by my simulator to those I got from RIPES to further test my statistics reporting.
 
 	\newpage
 	\appendix
@@ -177,23 +102,39 @@
 	Resets the simulator to the state it was in when the program was loaded, but does not remove any breakpoints and avoids recompilation
 
 	\verb|regs|\\
-	Is redundant since registers are always visible. Still implemented to give you an error saying the same because it was required in the problem statement
+	Shows the registers pane, Hiding any other panes that are open in its place.
 
 	\verb|show-stack|\\
-	Shows the stacktrace in the memory/stack-trace pane. If the stack-trace is already being shown then it does nothing
+	Shows the stack-trace pane, Closing any other panes that are open in its place. If the stack-trace is already being shown then it does nothing
 
 	\verb|mem <address>|\\
-	Shows the memory in the memory/stack-trace pane. The \verb|<count>| argument from the problem statement is not implemented as the ability to scroll on the memory pane makes it redundant.
+	Shows the memory pane,, Hiding any other panes that are open in its place. The \verb|<count>| argument from the problem statement is not implemented as the ability to scroll on the memory pane makes it redundant.
 
 	\verb|break <line>|\\
 	Inserts a breakpoint at the specified line number, or removes it if already set. Line number must be as displayed in the code pane.
+
+	\verb|cache_sim enable <config_file>|\\
+	Loads the configuration of the cache from the specified file. Enables the Cache if the configuration is successfully parsed and validated. Will cause any loaded file to be reset.
+
+	\verb|cache_sim disable|\\
+	Disables the Cache. Will cause any loaded file to be reset.
+
+	\verb|cache_sim invalidate|\\
+	Sets the Valid bit of all Cache lines to 0 If cache is enabled. If cache is disabled, returns an error does nothing.
+
+	\verb|cache_sim status|\\
+	\verb|cache_sim stats|\\
+	Shows the Cache pane with the active configuration, Data in cache and stats of cache.
+
+	\verb|cache_sim dump <filename>|\\
+	Will dump information about current valid cache lines to the specified file.
 
 	\verb|exit|\\
 	Closes the simulator. Keyboard Shortcut: F1
 	
 	Always use the \verb|exit| command, trying to exit using Ctrl + C will cause problems as the terminal may get misconfigured and text may not render properly. If this occurs, you have to either restart the terminal or run the \verb|reset| terminal command.
 
-	You can scroll in the code, memory and stack pane pane.
+	You can scroll in the code, memory, cache and stack panes.
 
 	\subsection{Ways that this simulator can be improved}
 
@@ -205,6 +146,9 @@
 		\item An indicator could be added at the bottom of the memory pane to show the current Stack size and percentage of memory being used
 		\item ELF file parsing - Just to learn how ELF files are structured.
 		\item Making a GUI instead of a TUI - Just to learn how to make GUIs
+		\item Adding the "up-arrow to restore last command" functionality commonly seen in terminals would be very time-saving
+		\item There is a major flaw in that I never implemented horizontal scrolling for the Cache pane due to a lack of time. This should probably be fixed ASAP
+		\item \verb|cache_sim| is a very lengthy prefix. A shorter alias should be added. 
 	\end{itemize}
 
 	\newpage
@@ -226,7 +170,7 @@
 	|   +-- backend               (implementation of the simulator)
 	|   |   +-- backend.c
 	|   |   +-- backend.h
-	|   |   +-- memory.c
+	|   |   +-- memory.c          (implementation of cache)
 	|   |   +-- memory.h
 	|   |   +-- stacktrace.c
 	|   |   +-- stacktrace.h
@@ -239,17 +183,6 @@
 	+-- report
 	|   +-- report.tex
 	|   +-- report.pdf
-	+-- test
-	|   +--all_instructions.s  
-	|   +--assembler_example_four.s  
-	|   +--assembler_example_one.s  
-	|   +--assembler_example_three.s  
-	|   +--assembler_example_two.s  
-	|   +--Example_One.s  
-	|   +--Example_Two.s  
-	|   +--fib.s  
-	|   +--gcd.s  
-	|   +--segfault.s
 	+-- .gitignore
 	+-- LICENSE
 	+-- Makefile
