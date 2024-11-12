@@ -8,3 +8,4 @@
 /libncursesdev/
 *.synctex.gz
 *riscv_sim
+*.zip

@@ -327,6 +327,15 @@ void invalidate_cache(Memory* memory) {
     if (!memory->cache_config.has_cache) return;
 
     for (int i=0; i<memory->cache_config.n_blocks; i++) {
+        if (memory->cache_config.write_policy == WriteBack && (memory->cache[i*memory->masks.block_offset] & VALID)) {
+            
+            memory->cache_stats.writebacks += 1;
+
+            memcpy(memory->data+ *(uint64_t*) (memory->cache+(i*memory->masks.block_offset)+1) +((i/memory->cache_config.associativity)*memory->cache_config.block_size),
+             memory->cache+(i*memory->masks.block_offset)+memory->masks.data_offset,
+             memory->cache_config.block_size);
+        }
+
         memory->cache[i*memory->masks.block_offset] &= ~VALID;
     }
 }
