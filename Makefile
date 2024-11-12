@@ -17,7 +17,6 @@ TARGET_PATH=./$(OUTDIR)/$(TARGET)
 
 .PHONY: build
 build: $(TARGET_PATH)
-	@cp bin/$(TARGET) ./$(TARGET)
 
 run: $(TARGET_PATH)
 	@cd bin && ./$(TARGET)
@@ -46,4 +45,3 @@ clean:
 	@echo "Removing Build and Test files..."
 	-@rm $(OBJS)
 	-@rm ./$(OUTDIR)/$(TARGET)
-	-@rm ./$(TARGET)
