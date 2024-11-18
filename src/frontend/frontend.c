@@ -27,6 +27,7 @@ static int input=ERR;                   // Stores last input
 static int code_scroll=0;               // Scroll related information
 static int aux_scroll=0;
 static int cache_scroll=0;
+static int cache_h_scroll=0;
 static int lines_of_code=0;
 static char* last_command = NULL;       // Relating to the input line at the bottom
 static size_t  last_command_len = 0;
@@ -80,6 +81,7 @@ void reset_frontend(bool hard) {
     last_reg_write = -2;
     if (!showing_mem) aux_scroll = 0;
     cache_scroll = 0;
+    cache_h_scroll=0;
 }
 
 void release_run_lock() {
@@ -365,18 +367,27 @@ void write_cache(int x, int y, int w, int h) {
     // 0x00 0 0 0x0000000000000000 44 18 32 54 23 53 34 
 
     int last_line = cache_scroll+h-6;
-    int max_bytes = (w<32+3*memory->cache_config.block_size)?(w-32)/3:memory->cache_config.block_size;
+    int max_bytes = (w<32+3*(memory->cache_config.block_size))?(w-32)/3:memory->cache_config.block_size;
+    int last_byte = memory->cache_config.block_size<max_bytes+cache_h_scroll?memory->cache_config.block_size:max_bytes+cache_h_scroll;
     int v_offset = 0;
     int h_offset = (w - 32 - 3*max_bytes)/2;
     if (last_line > memory->cache_config.n_blocks) last_line = memory->cache_config.n_blocks;
     
+    char header_string[memory->cache_config.block_size*3 + 1];
+    for (int i=0; i<memory->cache_config.block_size/4; i++) {
+        sprintf(header_string + 12*i, " Word 0x%02X  ", i);
+    }
+    header_string[memory->cache_config.block_size*3<(max_bytes+cache_h_scroll)*3-1?memory->cache_config.block_size*3:(max_bytes+cache_h_scroll)*3-1] = '\0';
+
+    mvaddstr(y+3+v_offset, x+31+h_offset, header_string+cache_h_scroll*3);
+
     // printf("%d %d %d\n", w, h_offset, x+2+h_offset);
     // return;
 
     mvprintw(y+2+v_offset, x+2+h_offset," Set  V D         Tag        Data");
 
     for (int i=cache_scroll; i<last_line; i++) {
-        mvprintw(y+4+v_offset, x+2+h_offset," 0x%02lx %d %d 0x%016lx",
+        mvprintw(y+4+v_offset, x+2+h_offset," 0x%02lx %d %d 0x%016lx|",
             i/memory->cache_config.associativity,
             memory->cache[i*memory->masks.block_offset]&VALID?1:0,
             memory->cache[i*memory->masks.block_offset]&DIRTY?1:0,
@@ -384,8 +395,9 @@ void write_cache(int x, int y, int w, int h) {
         // mvprintw(y+4+v_offset, x+2+h_offset," 0x%02lx %d %d 0x%016lx", 1, 1, 0, 128);
 
         // for (int j=0; j<memory->cache_config.associativity; j++) {
-        for (int j=0; j<max_bytes; j++) {
-            mvprintw(y+4+v_offset, x+30+h_offset+3*j, " %02x", memory->cache[i*memory->masks.block_offset+memory->masks.data_offset+j]);
+        for (int j=cache_h_scroll; j<last_byte; j++) {
+            if ((j+1)%4) mvprintw(y+4+v_offset, x+31+h_offset+3*(j-cache_h_scroll), "%02x ", memory->cache[i*memory->masks.block_offset+memory->masks.data_offset+j]);
+            else mvprintw(y+4+v_offset, x+31+h_offset+3*(j-cache_h_scroll), "%02x|", memory->cache[i*memory->masks.block_offset+memory->masks.data_offset+j]);
             // mvprintw(y+4+v_offset, x+29+h_offset+3*j, " %02x", 64);
         }
         
@@ -581,6 +593,22 @@ Command frontend_update() {
             else aux_scroll = aux_scroll<=(stack->len-5)?aux_scroll+1:aux_scroll;
         }
 
+        return NONE;
+    }
+    
+    if (input == KEY_LEFT) {
+        // show_error("%d", cache_h_scroll);
+        if(showing_cache && mouse.y < cache_stats_root_y && memory->cache_config.has_cache) {
+            cache_h_scroll -= cache_h_scroll>0?1:0;
+        }
+        return NONE;
+    }
+
+    if (input == KEY_RIGHT) {
+        // show_error("%d", cache_h_scroll);
+        if(showing_cache && mouse.y < cache_stats_root_y && memory->cache_config.has_cache) {
+            cache_h_scroll += cache_h_scroll<memory->cache_config.block_size-5?1:0;
+        }
         return NONE;
     }
 
@@ -809,6 +837,7 @@ Command frontend_update() {
             } else {
                 showing_cache = true;
                 cache_scroll = 0;
+                cache_h_scroll=0;
             }
             
             return NONE;
