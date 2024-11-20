@@ -155,6 +155,15 @@ int main(int* argc, char** argv) {
 				}
 				break;
 
+			case RUN_END:
+				int _result = run_to_end(&frontend_update);
+				release_run_lock();
+				if (_result == 2) show_error("Execution stopped at breakpoint!");
+				else if (_result == 1) {
+					show_error("Reached End of Program");
+				}
+				break;
+
 			case RESET:
 				// Reset stack
 				if (stack) st_free(stack);

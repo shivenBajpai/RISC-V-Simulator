@@ -10,6 +10,7 @@
 
 int step();
 int run();
+int run_to_end();
 
 void reset_backend(bool hard, CacheConfig cache_config);
 void set_stacktrace_pointer(stacktrace* stacktrace);

@@ -262,7 +262,8 @@ int init_frontend() {
     initscr();
     raw();
     keypad(stdscr, TRUE);
-    halfdelay(1);
+    // halfdelay(1);
+    nodelay(stdscr, true);
     noecho();
     mousemask(ALL_MOUSE_EVENTS, NULL);
     mouse.x = 0;
@@ -819,6 +820,27 @@ Command frontend_update() {
             set_run_lock();
             show_error("Running! Press F6 or type \"stop\" to stop execution");
             return RUN;
+
+        } else if (last_command_len == 5 && !strcmp("$xrun", last_command)) {
+
+            if (!code_loaded) {
+                show_error("No code loaded! use load <filename> to load code");
+                return NONE;
+            }
+
+            if (run_lock) {
+                show_error("Already running, Press F6 or type \"stop\" to stop!");
+                return NONE;
+            }
+
+            if (*pc/4 >= lines_of_code) {
+                show_error("Nothing to run! use reset command to reset");
+                return NONE;
+            }
+
+            set_run_lock();
+            show_error("Running! Press F6 or type \"stop\" to stop execution");
+            return RUN_END;
 
         } else if (last_command_len == 5 && !strcmp("$step", last_command)) {
             if (!code_loaded) {

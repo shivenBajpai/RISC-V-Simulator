@@ -11,6 +11,7 @@
 typedef enum {
     LOAD,
     RUN,
+    RUN_END,
     EXIT,
     SHOW_STACK,
     STEP,

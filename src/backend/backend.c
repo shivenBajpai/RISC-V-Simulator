@@ -476,3 +476,22 @@ int run(Command (*callback)(void)) {
         // if ((*callback)() == STOP) return 0;
     }
 }
+
+int run_to_end(Command (*callback)(void)) {
+    // static time_t next_tick = 0;
+    // static struct timeb time;
+    int result;
+
+    while (1) {
+        // Keep updating frontend while we wait out the delay between instructions
+        if ((*callback)() == STOP) return 0;
+        // do{
+        //     ftime(&time);
+        // } while (time.time*1000 + time.millitm < next_tick);
+        // next_tick = time.time*1000 + time.millitm + 0;
+
+        // Call step here
+        if ((result = step())) return result;
+        // if ((*callback)() == STOP) return 0;
+    }
+}
