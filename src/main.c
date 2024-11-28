@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
+#include <errno.h>
 #include "globals.h"
 #include "backend/backend.h"
 #include "frontend/frontend.h"
@@ -35,7 +36,7 @@ void exit_handler() {
 	destroy_backend();
 }
 
-int main(int* argc, char** argv) {
+int main(int argc, char** argv) {
 	
 	Command command = NONE;
 	bool file_loaded = false;
@@ -46,11 +47,85 @@ int main(int* argc, char** argv) {
 	// input_file = malloc(sizeof(char) * 256); // Allocate memory for the input file_name // TODO: make this be fixed size and put it in d-segment
 
 	// CLI Switches
-    while(*(++argv) != NULL) {
-            
-		if (strcmp(*argv,"--smc")==0 || strcmp(*argv,"--self-modifying-code")==0) {
-			text_write_enabled = true;
+	for (int i = 1; i < argc; i++) {
+		
+        if (strcmp(argv[i],"-r")==0 || strcmp(argv[i],"--regs")==0) cli_regs = true;
+
+		if (strcmp(argv[i],"-i")==0 || strcmp(argv[i],"--input")==0) {
+			i++;
+			if (i==argc) {
+				printf("Missing input file name for option \"input\"\n");
+				return 1;
+			}
+
+			cli_input_file = argv[i];
+
 		}
+
+		if (strcmp(argv[i],"-t")==0 || strcmp(argv[i],"--tests")==0) {
+			i++;
+			if (i==argc) {
+				printf("Missing number of cases for option \"tests\"\n");
+				return 1;
+			}
+
+			// Convert the next item from argv[i] to an integer
+			char *endptr;
+			errno = 0; // To distinguish success/failure after call
+			cli_n_cases = strtol(argv[i], &endptr, 10);
+
+			// Check for various possible errors
+			if (errno != 0 || endptr == argv[i] || *endptr != '\0') {
+				printf("Invalid number of cases for option \"tests\"\n");
+				return 1;
+			}
+
+			i++;
+			if (i==argc) {
+				printf("Missing file name for option \"tests\"\n");
+				return 1;
+			}
+
+			cli_test_file = argv[i];
+		}
+
+		if (strcmp(argv[i],"-c")==0 || strcmp(argv[i],"--cycles")==0) {
+			i++;
+			if (i==argc) {
+				printf("Missing value for option \"cycles\"\n");
+				return 1;
+			}
+
+			// Convert the next item from argv[i] to an integer
+			char *endptr;
+			errno = 0; // To distinguish success/failure after call
+			cli_cycles = strtol(argv[i], &endptr, 10);
+
+			// Check for various possible errors
+			if (errno != 0 || endptr == argv[i] || *endptr != '\0') {
+				printf("Invalid number of cases for option \"cycles\"\n");
+				return 1;
+			}
+		}
+
+		// if (strcmp(argv[i],"-m")==0 || strcmp(argv[i],"--memsize")==0) {
+		// 	i++;
+		// 	if (i==argc) {
+		// 		printf("Missing value for option \"memsize\"\n");
+		// 		return 1;
+		// 	}
+
+		// 	// Convert the next item from argv[i] to an integer
+		// 	char *endptr;
+		// 	errno = 0; // To distinguish success/failure after call
+		// 	cli_mem_max = strtol(argv[i], &endptr, 10);
+
+		// 	// Check for various possible errors
+		// 	if (errno != 0 || endptr == argv[i] || *endptr != '\0') {
+		// 		printf("Invalid number of cases for option \"memsize\"\n");
+		// 		return 1;
+		// 	}
+		// }
     }
 
 	srand(time(NULL));
