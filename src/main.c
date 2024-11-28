@@ -10,7 +10,8 @@
 #include <errno.h>
 #include "globals.h"
 #include "backend/backend.h"
-#include "frontend/frontend.h"
+// #include "frontend/frontend.h"
+#include "supervisor/supervisor.h"
 #include "assembler/vec.h"
 #include "assembler/assembler.h"
 #include "backend/stacktrace.h"
@@ -22,7 +23,7 @@ static uint32_t* hexcode = NULL;
 static uint8_t *memory_template = NULL;
 static char* cleaned_code = NULL;
 static CacheConfig cache_config;
-
+static FILE* test_file_pointer;
 
 // Ensures memory is freed and ncurses mode is exited properly, regardless of exit cause`
 void exit_handler() {
@@ -32,6 +33,7 @@ void exit_handler() {
 	if (index_of_labels) free_label_index(index_of_labels);
 	if (cleaned_code) free(cleaned_code);
 	if (memory_template) free(memory_template);
+	fclose(test_file_pointer);
 	destroy_frontend();
 	destroy_backend();
 }
@@ -108,26 +110,43 @@ int main(int argc, char** argv) {
 			}
 		}
 
-		// if (strcmp(argv[i],"-m")==0 || strcmp(argv[i],"--memsize")==0) {
-		// 	i++;
-		// 	if (i==argc) {
-		// 		printf("Missing value for option \"memsize\"\n");
-		// 		return 1;
-		// 	}
+		if (strcmp(argv[i],"-m")==0 || strcmp(argv[i],"--mem")==0) {
+			i++;
+			if (i==argc) {
+				printf("Missing start address for option \"mem\"\n");
+				return 1;
+			}
 
-		// 	// Convert the next item from argv[i] to an integer
-		// 	char *endptr;
-		// 	errno = 0; // To distinguish success/failure after call
-		// 	cli_mem_max = strtol(argv[i], &endptr, 10);
+			// Convert the next item from argv[i] to an integer
+			char *endptr;
+			errno = 0; // To distinguish success/failure after call
+			cli_mem_min = strtol(argv[i], &endptr, 16);
 
-		// 	// Check for various possible errors
-		// 	if (errno != 0 || endptr == argv[i] || *endptr != '\0') {
-		// 		printf("Invalid number of cases for option \"memsize\"\n");
-		// 		return 1;
-		// 	}
-		// }
+			// Check for various possible errors
+			if (errno != 0 || endptr == argv[i] || *endptr != '\0') {
+				printf("Invalid start address for option \"mem\"\n");
+				return 1;
+			}
+
+			i++;
+			if (i==argc) {
+				printf("Missing end address for option \"mem\"\n");
+				return 1;
+			}
+
+			// Convert the next item from argv[i] to an integer
+			errno = 0; // To distinguish success/failure after call
+			cli_mem_max = strtol(argv[i], &endptr, 16);
+
+			// Check for various possible errors
+			if (errno != 0 || endptr == argv[i] || *endptr != '\0') {
+				printf("Invalid end address for option \"mem\"\n");
+				return 1;
+			}
+		}
     }
 
+	test_file_pointer = fopen(cli_test_file, "r");
 	srand(time(NULL));
 
 	// Initialization
@@ -221,6 +240,28 @@ int main(int argc, char** argv) {
 				file_loaded = true;
 				break;
 
+			case PATCH_DATA:
+				memset(memory_template+DATA_BASE, 0, sizeof(uint8_t)*(MEMORY_SIZE-DATA_BASE));
+				data_only_run(test_file_pointer, memory_template);
+
+				if (stack) st_free(stack);
+				stack = new_stacktrace(index_of_labels);
+				st_push(stack, 0);
+
+				reset_backend(false, cache_config);
+				reset_frontend(false);
+
+				// Give frontend new pointers to data in backend
+				set_stack_pointer(stack);
+				set_stacktrace_pointer(stack);
+				set_breakpoints_pointer(get_breakpoints_pointer());
+				
+				// Reset data segment and instructions in memory
+				memcpy(get_memory_pointer()->data, &hexcode[1], hexcode[0]*4);
+				memcpy(get_memory_pointer()->data+DATA_BASE, memory_template+DATA_BASE, MEMORY_SIZE-DATA_BASE);
+				set_hexcode_pointer((uint32_t*) &hexcode[1]);
+				break;
+			
 			case RUN:
 				int result = run(&frontend_update);
 				release_run_lock();
@@ -233,10 +274,10 @@ int main(int argc, char** argv) {
 			case RUN_END:
 				int _result = run_to_end(&frontend_update);
 				release_run_lock();
-				if (_result == 2) show_error("Execution stopped at breakpoint!");
-				else if (_result == 1) {
-					show_error("Reached End of Program");
-				}
+				// if (_result == 2) show_error("Execution stopped at breakpoint!");
+				// else if (_result == 1) {
+				// 	show_error("Reached End of Program");
+				// }
 				break;
 
 			case RESET:

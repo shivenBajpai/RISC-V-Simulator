@@ -49,7 +49,7 @@ Memory* new_vmem(CacheConfig cache_config) {
 }
 
 void reset_cache(Memory* memory) {
-    memset(memory->cache, 0,memory->cache_config.n_blocks*memory->masks.block_offset);
+    if (memory->cache) memset(memory->cache, 0,memory->cache_config.n_blocks*memory->masks.block_offset);
     memory->cache_stats.access_count =0;
     memory->cache_stats.hit_count = 0;
     memory->cache_stats.miss_count = 0;

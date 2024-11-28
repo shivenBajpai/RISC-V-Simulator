@@ -9,8 +9,8 @@
 
 // Messages exchanged between frontend and other sections of the application
 typedef enum {
-    LOAD,
     PATCH_DATA,
+    LOAD,
     RUN,
     RUN_END,
     EXIT,

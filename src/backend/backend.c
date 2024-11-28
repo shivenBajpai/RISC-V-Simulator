@@ -525,6 +525,7 @@ int run_to_end(Command (*callback)(void)) {
     // static time_t next_tick = 0;
     // static struct timeb time;
     int result;
+    int cycles = 0;
 
     while (1) {
         // Keep updating frontend while we wait out the delay between instructions
@@ -536,6 +537,10 @@ int run_to_end(Command (*callback)(void)) {
 
         // Call step here
         if ((result = step())) return result;
+        if (++cycles == cli_cycles) {
+            show_error("Max Cycles exceeded! Execution stopped.\n");
+            return 1;
+        }
         // if ((*callback)() == STOP) return 0;
     }
 }

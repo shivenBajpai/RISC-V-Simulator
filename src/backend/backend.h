@@ -5,8 +5,8 @@
 #include "stacktrace.h"
 #include "memory.h"
 
-#define DATA_BASE 0x10000
-#define MEMORY_SIZE 0x50000 + 1 // Also used as end from which stack grows downward
+#define DATA_BASE 0x10000000
+#define MEMORY_SIZE 0x20000000 + 1 // Also used as end from which stack grows downward
 
 int step();
 int run();

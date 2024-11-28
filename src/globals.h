@@ -12,6 +12,7 @@ extern char* cli_test_file;
 extern bool cli_regs;
 extern uint64_t cli_n_cases;
 extern uint64_t cli_mem_max;
+extern uint64_t cli_mem_min;
 extern int64_t cli_cycles;
 
 #endif

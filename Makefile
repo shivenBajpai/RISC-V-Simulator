@@ -20,7 +20,7 @@ build: $(TARGET_PATH)
 	@cp bin/$(TARGET) ./$(TARGET)
 
 run: $(TARGET_PATH)
-	@cd bin && ./$(TARGET)
+	@cd bin && ./$(TARGET) -t 1 data.txt --regs --mem 0x10030 -c 5
 
 debug: $(TARGET_PATH)
 	@cd bin && ./$(TARGET) -d

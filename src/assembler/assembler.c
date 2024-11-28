@@ -430,3 +430,184 @@ int* assembler_main(FILE* in_fp, char* cleaned, label_index* index, uint8_t* mem
 	free_managed_array(line_mapping);
 	return hexcode;
 }
+
+int new_pre_pass(FILE **in_fp, uint8_t* memory) {
+	FILE* fp = *in_fp;
+	char c;
+	char buffer[80];
+	char *endptr;
+	int i=0;
+	int line_offset = 1;
+	int mem_pointer = DATA_BASE;
+	long imm = 0;
+	bool data_flag = true;
+	bool comment_flag = false; // Are we reading a comment
+	bool command_flag = false;
+	bool got_command = false;
+
+	while(1) {
+		c = fgetc(fp);
+		switch (c) {
+			case '#':
+			case ';':
+				comment_flag = true;
+				if (command_flag) {
+					show_error("Unexpected comment on line %d", line_offset);
+					return -1;
+				}
+				break;
+
+			case EOF:
+				return 0;
+
+			case '\n':
+				line_offset++;
+				comment_flag = false;
+				if (got_command) return 0;
+				
+			case ' ':
+			case '\t':
+				if (command_flag) {
+					buffer[i] = '\0';
+					if (!strcmp(buffer, "data")) {
+						data_flag = true;
+
+					} else if (!strcmp(buffer, "text")) {
+						fseek(fp, -1, SEEK_CUR);
+						return line_offset-1;
+
+					} else if (!strcmp(buffer, "dword")) {
+						if (!data_flag) {
+							show_error("Invalid command outside data segment on line %d", line_offset);
+						}
+
+						do {
+							if (read_greedy(&fp, buffer, 80)) {
+								show_error("Value too large on line %d", line_offset);
+								return -1;
+							}
+
+							imm = parse_imm(buffer, &endptr);
+							if (*endptr != '\0') {
+								show_error("Failed to parse value on line %d", line_offset);
+								return -1;
+							}
+
+							memcpy(&memory[mem_pointer], &imm, 8);
+							mem_pointer += 8;
+						} while((c = fgetc(fp)) == ',');
+		
+						fseek(fp, -1, SEEK_CUR);
+
+					} else if (!strcmp(buffer, "word")) {
+						if (!data_flag) {
+							show_error("Invalid command outside data segment on line %d", line_offset);
+						}
+
+						do {
+							if (read_greedy(&fp, buffer, 80)) {
+								show_error("Value too large on line %d", line_offset);
+								return -1;
+							}
+
+							imm = parse_imm(buffer, &endptr);
+							if (*endptr != '\0') {
+								show_error("Failed to parse value on line %d", line_offset);
+								return -1;
+							}
+
+							memcpy(&memory[mem_pointer], &imm, 4);
+							mem_pointer += 4;
+						} while((c = fgetc(fp)) == ',');
+		
+						fseek(fp, -1, SEEK_CUR);
+
+					} else if (!strcmp(buffer, "half")) {
+						if (!data_flag) {
+							show_error("Invalid command outside data segment on line %d", line_offset);
+						}
+
+						do {
+							if (read_greedy(&fp, buffer, 80)) {
+								show_error("Value too large on line %d", line_offset);
+								return -1;
+							}
+
+							imm = parse_imm(buffer, &endptr);
+							if (*endptr != '\0') {
+								show_error("Failed to parse value on line %d", line_offset);
+								return -1;
+							}
+
+							memcpy(&memory[mem_pointer], &imm, 2);
+							mem_pointer += 2;
+						} while((c = fgetc(fp)) == ',');
+		
+						fseek(fp, -1, SEEK_CUR);
+					
+					} else if (!strcmp(buffer, "byte")) {
+						if (!data_flag) {
+							show_error("Invalid command outside data segment on line %d", line_offset);
+						}
+
+						do {
+							if (read_greedy(&fp, buffer, 80)) {
+								show_error("Value too large on line %d", line_offset);
+								return -1;
+							}
+
+							imm = parse_imm(buffer, &endptr);
+							if (*endptr != '\0') {
+								show_error("Failed to parse value on line %d", line_offset);
+								return -1;
+							}
+
+							memcpy(&memory[mem_pointer], &imm, 1);
+							mem_pointer += 1;
+						} while((c = fgetc(fp)) == ',');
+		
+						fseek(fp, -1, SEEK_CUR);
+
+					} else {
+						show_error("Unknown statement on line %d", line_offset);
+						return -1;
+					}
+					command_flag = false;
+				}
+
+				break;
+
+			case '.':
+				if (comment_flag) break;
+
+				if (command_flag) {
+					show_error("Unexpected . on line %d", line_offset);
+					return -1;
+				}
+				command_flag = true;
+				got_command = true;
+				i=0;
+				break;
+
+			default:
+				if (comment_flag) break;
+				if (!command_flag) {
+					fseek(fp, -1, SEEK_CUR);
+					return line_offset-1;
+				}
+
+				buffer[i] = c;
+				i++;
+				if (i==79) {
+					show_error("Unknown statement on line %d", line_offset);
+					return -1;
+				}
+				break;
+		}
+	}
+}
+
+int data_only_run(FILE* in_fp, uint8_t* memory) {
+	if (new_pre_pass(&in_fp, memory) == -1) return 1;
+	return 0;
+}

@@ -706,6 +706,35 @@ Command frontend_update() {
             strcpy(input_file, last_command+6);
             return LOAD;
 
+        } else if (!strncmp("$patch", last_command, 6)) {
+            if (run_lock) {
+                show_error("Command invalid while running!");
+                return NONE;
+            }
+            return PATCH_DATA;
+
+        } else if (!strncmp("$dumpy", last_command, 6)) {
+            if (run_lock) {
+                show_error("Command invalid while running!");
+                return NONE;
+            }
+
+            if (cli_regs) {
+                for (int i=0; i<32; i++) {
+                    printf("%ld, ", regs[i]);
+                }
+            }
+
+            if (cli_mem_max) {
+                for (int i=DATA_BASE; i<cli_mem_max; i+=8) {
+                    printf("%ld, ", *(int64_t*) (memory->data+i));
+                }
+            }
+
+            // TODO: cache flushing and stats
+            printf("\n");
+            return NONE;
+
         } else if (!strncmp("$cache_sim enable ", last_command, 18)) {
             if (run_lock) {
                 show_error("Command invalid while running!");
