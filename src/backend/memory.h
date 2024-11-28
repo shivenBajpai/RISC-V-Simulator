@@ -11,8 +11,8 @@
 #include "stdio.h"
 #include "time.h"
 
-#define DATA_BASE 0x10000
-#define MEMORY_SIZE 0x50000 + 1 // Also used as end from which stack grows downward
+#define DATA_BASE 0x10000000
+#define MEMORY_SIZE 0x20000000 + 1 // Also used as end from which stack grows downward
 #define VALID (uint8_t) 0b1000
 #define DIRTY (uint8_t) 0b0100
 

@@ -2,7 +2,8 @@
 #include "stdlib.h"
 #include "string.h"
 #include "math.h"
-#include "../frontend/frontend.h"
+// #include "../frontend/frontend.h"
+#include "../supervisor/supervisor.h"
 #include "../globals.h" 
 
 #define SEC_TO_NS(sec) ((sec)*1000000000)

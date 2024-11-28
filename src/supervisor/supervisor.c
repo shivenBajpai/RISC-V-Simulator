@@ -32,6 +32,7 @@ void show_error(char* format, ...) {
     va_start(args, format);
     printf("Supervisor: While running testcase %d (step %d) An Error Occured:\n", case_count, substep);
     vprintf(format, args);
+    printf("\n");
     va_end(args);
     exit(EXIT_FAILURE);
 }

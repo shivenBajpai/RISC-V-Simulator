@@ -1,74 +1,38 @@
-# RISC-V Simulator for CS2323 Computer Architecture
+# RISC-V Simulator-Testor for CS2323 Computer Architecture
 
-This project is a simple RISC-V simulator.
+Build the project by running `make`
+The binary is generated in `\bin`
 
-### Build instructions
-To build this project, the development libraries for ncurses need to be installed using the command:
+# Command Line options:
 
-```bash
-sudo apt install libncurses-dev
-```
+### Required:
 
-Then build the project by running `make`
-The binary is generated in `/bin`
+--input \<filename> <br>
+-i \<filename>
 
-## Usage notes for TA's
+The file with the code to be run
 
-Since this simulator has a TUI, It made sense to make alter some details of the commands. While full details are available in the appendix of the report, here is the short version:
+--tests \<num_cases> \<test_cases_file> <br>
+-t \<num_cases> \<test_cases_file>
 
-Line numbering for break starts from .text section. This is not difficult to use as argued in the moodle thread asking for change as line numbers are shown on screen.
-del-break and break are in the same command, it just toggles the breakpoint
+The number of test cases, and a file with each test case, as a single line that is interpreted as the data segment. 
 
-The run command runs live at a pace of about 5 instructions per second.
-Stop execution and hold down F8(step command shortcut) to execute it much faster.
+### Optional
 
-The mem command does not take a count argument. This is because the memory is displayed in a scrollable pane and so it doesn't make sense to have a count argument as all lines are always visible anyways.
+--cycles \<max-cycle-count> <br>
+-c \<max-cycle-count>
 
-regs is redundant as registers are always visible
+Maximum number of cycles to run before stopping, for the purpose of catching infinite loops. If not specified, program will be run infinitely.
 
-## Command Line Options
+--regs <br>
+-r
 
-`--smc`
-`--self-modifying-code`
-Allows the code to overwrite the text section. Note that the code shown will not update and not be accurate.
-If this switch is not present, Trying to overwrite text section will fail.
+If specified, the registers will be dumped in the output
 
-A more detailed report on the design and features of this simulator is present in `report.pdf` in `/report`
+--mem \<start-address> \<end-address> <br> 
+-m \<start-address> \<end-address>
 
-## File Structure
+If specified, the values in memory between the specified addresses will be dumped in the output
+Memory data will be interpreted as a series of signed dwords
+Might be funky if addresses are not dword aligned
 
-```
-/
-+-- bin
-+-- build
-+-- src
-|   +-- assembler                       (files from previous Lab assignment)
-|   |   +-- assembler.c
-|   |   +-- assembler.h
-|   |   +-- index.c
-|   |   +-- index.h
-|   |   +-- translator.c
-|   |   +-- translator.h
-|   |   +-- vec.c
-|   |   +-- vec.h
-|   +-- backend                         (implementation of the simulator)
-|   |   +-- backend.c
-|   |   +-- backend.h
-|   |   +-- memory.c                    (implementation of cache)
-|   |   +-- memory.h
-|   |   +-- stacktrace.c
-|   |   +-- stacktrace.h
-|   +-- frontend                        (ncurses frontend)
-|   |   +-- frontend.c
-|   |   +-- frontend.h
-|   +-- main.c                          (main loop, initialization, memory management)
-|   +-- globals.c                       (some globals)
-|   +-- globals.h
-+-- report
-|   +-- report.tex
-|   +-- report.pdf
-+-- .gitignore
-+-- LICENSE
-+-- Makefile
-+-- README.md
-```

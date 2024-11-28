@@ -7,7 +7,8 @@
 #include <string.h>
 #include "../globals.h"
 #include "../assembler/vec.h"
-#include "../frontend/frontend.h"
+// #include "../frontend/frontend.h"
+#include "../supervisor/supervisor.h"
 #include "backend.h"
 #include "memory.h"
 
@@ -538,7 +539,7 @@ int run_to_end(Command (*callback)(void)) {
         // Call step here
         if ((result = step())) return result;
         if (++cycles == cli_cycles) {
-            show_error("Max Cycles exceeded! Execution stopped.\n");
+            show_error("Max Cycles exceeded! Execution stopped.");
             return 1;
         }
         // if ((*callback)() == STOP) return 0;

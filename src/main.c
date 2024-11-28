@@ -45,7 +45,6 @@ int main(int argc, char** argv) {
 
 	cache_config.has_cache = 0;
 	
-	atexit(*(exit_handler));
 	// input_file = malloc(sizeof(char) * 256); // Allocate memory for the input file_name // TODO: make this be fixed size and put it in d-segment
 
 	// CLI Switches
@@ -77,7 +76,7 @@ int main(int argc, char** argv) {
 			cli_n_cases = strtol(argv[i], &endptr, 10);
 
 			// Check for various possible errors
-			if (errno != 0 || endptr == argv[i] || *endptr != '\0') {
+			if (errno != 0 || endptr == argv[i] || *endptr != '\0' || cli_n_cases <= 0) {
 				printf("Invalid number of cases for option \"tests\"\n");
 				return 1;
 			}
@@ -146,7 +145,23 @@ int main(int argc, char** argv) {
 		}
     }
 
+	if (!cli_input_file) {
+		printf("No input file specified\n");
+		return 1;
+	}
+
+	if (!cli_test_file) {
+		printf("No test file specified\n");
+		return 1;
+	}
+
 	test_file_pointer = fopen(cli_test_file, "r");
+	if (!test_file_pointer) {
+		printf("Failed to open test file\n");
+		return 1;
+	}
+
+	atexit(*(exit_handler));
 	srand(time(NULL));
 
 	// Initialization

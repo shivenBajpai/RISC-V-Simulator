@@ -3,7 +3,8 @@
 #include <ctype.h>
 #include <stdlib.h>
 #include "translator.h"
-#include "../frontend/frontend.h"
+// #include "../frontend/frontend.h"
+#include "../supervisor/supervisor.h"
 
 typedef struct alias {
     const char* name;

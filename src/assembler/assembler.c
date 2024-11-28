@@ -4,7 +4,8 @@
 #include "vec.h"
 #include "index.h"
 #include "translator.h"
-#include "../frontend/frontend.h"
+// #include "../frontend/frontend.h"
+#include "../supervisor/supervisor.h"
 #include "../backend/backend.h"
 
 int read_greedy(FILE** in_fp, char* buffer, size_t n) {
