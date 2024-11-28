@@ -490,7 +490,7 @@ long J_type_parser(char** args_raw, label_index* labels, uint64_t* line_number, 
 }
 
 long I3_type_parser(char** args_raw, label_index* labels, uint64_t* line_number, int instruction_number, bool* fail_flag) {
-    argument_type types[] = {REGISTER, IMMEDIATE, REGISTER};
+    argument_type types[] = {REGISTER, REGISTER, IMMEDIATE};
     int* args = parse_args(args_raw, labels, 3, types, line_number, instruction_number);
 
     if (!args) {
@@ -498,8 +498,8 @@ long I3_type_parser(char** args_raw, label_index* labels, uint64_t* line_number,
         return -1;
     }
 
-    int rearranged_offset = (args[1] & 0x00000FFF) << 20;
-    int result = (args[0] << 7) + (args[2] << 15) + rearranged_offset;
+    int rearranged_offset = (args[2] & 0x00000FFF) << 20;
+    int result = (args[0] << 7) + (args[1] << 15) + rearranged_offset;
 
     free(args);
     return result;
