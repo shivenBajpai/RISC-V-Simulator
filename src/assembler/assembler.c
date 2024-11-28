@@ -367,6 +367,10 @@ int second_pass(char* clean_fp, int* hexcode, label_index* index, vec* line_mapp
 
 					case I4_TYPE:
 						break;
+
+					// case P_TYPE:
+					// 	addend = P_type_parser(&clean_fp, index, &line_mapping->values[instruction_count], instruction_count, &fail_flag, constants);
+					// 	break; 
 						
 					default:
 						show_error("Error on line %d: Unclassified type, This should not have happened!", line_mapping->values[instruction_count]);

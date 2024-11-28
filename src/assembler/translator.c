@@ -57,7 +57,19 @@ static const instruction_info instructions[] = {
     "lui",      0b0110111,                      U_TYPE,
     "auipc",    0b0010111,                      U_TYPE,   
     "ecall",    0b1110011,                      I4_TYPE,   
-    "ebreak",   0b1110011+(0X1<<20),            I4_TYPE,       
+    "ebreak",   0b1110011+(0X1<<20),            I4_TYPE,   
+
+    "mul",      0b0110011+(0x0<<12)+(0x01<<25), R_TYPE,
+    "mulh",     0b0110011+(0x1<<12)+(0x01<<25), R_TYPE,
+    "mulsu",    0b0110011+(0x2<<12)+(0x01<<25), R_TYPE,
+    "mulu",     0b0110011+(0x3<<12)+(0x01<<25), R_TYPE,
+    "div",      0b0110011+(0x4<<12)+(0x01<<25), R_TYPE,
+    "divu",     0b0110011+(0x5<<12)+(0x01<<25), R_TYPE,
+    "rem",      0b0110011+(0x6<<12)+(0x01<<25), R_TYPE,
+    "remu",     0b0110011+(0x7<<12)+(0x01<<25), R_TYPE,
+
+    // "li",       0b1111111,                      P_TYPE, 
+    "nop",      0b0110011,                      I4_TYPE, // Converts to add x0 x0 x0
 }; 
 
 static const alias registers[] = {
@@ -148,7 +160,7 @@ int parse_alias(char* name) {
 
 // Convert instruction name into instruction_info* by looking it up in the list of instructions
 const instruction_info* parse_instruction(char* name) {
-    for (int i = 0; i<42; i++) {
+    for (int i = 0; i<50; i++) {
         if (strcmp(name, instructions[i].name) == 0) {
             return &instructions[i];
         }
@@ -304,6 +316,22 @@ int* parse_args(char** fpp, label_index* labels, int n_args, argument_type* type
 // before returning the encoded arguemnts as a long int
 // 
 // The purpose of these functions being defined like this, is to declutter the code for the second_pass function in main.c
+
+// long P_type_parser(char** args_raw, label_index* labels, uint64_t* line_number, int instruction_number, bool* fail_flag, vec* constants) {
+//     argument_type types[] = {REGISTER, IMMEDIATE};
+//     int* args = parse_args(args_raw, labels, 2, types, line_number, instruction_number);
+
+//     if (!args) {
+//         *fail_flag = true;
+//         return -1;
+//     }
+
+//     append(constants, args[1]);
+//     int result = (args[0] << 7) + ((constants->len-1) << 12);
+
+//     free(args);
+//     return result;
+// }
 
 long R_type_parser(char** args_raw, label_index* labels, uint64_t* line_number, int instruction_number, bool* fail_flag) {
     argument_type types[] = {REGISTER, REGISTER, REGISTER};

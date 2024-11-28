@@ -21,7 +21,8 @@ typedef enum instruction_type {
     U_TYPE,
     J_TYPE,
     I3_TYPE,
-    I4_TYPE
+    I4_TYPE,
+    P_TYPE
 } instruction_type;
 
 typedef enum argument_type {
@@ -30,6 +31,7 @@ typedef enum argument_type {
     REGISTER
 } argument_type;
 
+// long P_type_parser(char** args_raw, label_index* labels, uint64_t* line_number, int instruction_number, bool* fail_flag, vec* constants);
 long R_type_parser(char** args_raw, label_index* labels, uint64_t* line_number, int instruction_number, bool* fail_flag);
 long I1_type_parser(char** args_raw, label_index* labels, uint64_t* line_number, int instruction_number, bool* fail_flag);
 long I1B_type_parser(char** args_raw, label_index* labels, uint64_t* line_number, int instruction_number, bool* fail_flag);

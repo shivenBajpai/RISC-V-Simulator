@@ -70,6 +70,14 @@ enum Instruction_Constants{
     auipc = 0b0010111,
     ecall = 0b1110011,
     ebreak = 0b1110011+(0X1<<20),
+    mul = 0b0110011+(0x0<<12)+(0x01<<25),
+    mulh = 0b0110011+(0x1<<12)+(0x01<<25),
+    mulsu = 0b0110011+(0x2<<12)+(0x01<<25),
+    mulu = 0b0110011+(0x3<<12)+(0x01<<25),
+    _div = 0b0110011+(0x4<<12)+(0x01<<25),
+    divu = 0b0110011+(0x5<<12)+(0x01<<25),
+    rem = 0b0110011+(0x6<<12)+(0x01<<25),
+    remu = 0b0110011+(0x7<<12)+(0x01<<25),
 }; 
 
 static uint64_t registers[32] = {0};
@@ -431,6 +439,42 @@ int step() {
 
         case ecall:
         case ebreak:
+            break;
+
+        case mul:
+            *rd = (*rs1 * *rs2);
+            break;
+
+        case mulh:
+            *rd = ((int64_t) *rs1 * (__int128_t) *rs2)<<64;
+            break;
+
+        case mulsu:
+            *rd = ((int64_t) *rs1 * (__uint128_t) *rs2)<<64;
+            break;
+
+        case mulu:
+            *rd = ((uint64_t) *rs1 * (__uint128_t) *rs2)<<64;
+            break;
+
+        case _div:
+            if (*rs2 != 0) *rd = (int64_t) *rs1 / (int64_t) *rs2;
+            else *rd = 0;
+            break;
+
+        case divu:
+            if (*rs2 != 0) *rd = *rs1 / *rs2;
+            else *rd = 0;
+            break;
+
+        case rem:
+            if (*rs2 != 0) *rd = (int64_t) *rs1 % (int64_t) *rs2;
+            else *rd = 0;
+            break;
+
+        case remu:
+            if (*rs2 != 0) *rd = (int64_t) *rs1 % (int64_t) *rs2;
+            else *rd = 0;
             break;
     }
 
