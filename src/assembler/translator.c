@@ -176,6 +176,7 @@ const instruction_info* parse_instruction(char* name) {
 long int* parse_args(char** fpp, label_index* labels, int n_args, argument_type* types, uint64_t* line_number, int instruction_number) {
     int i_args = 0;
     int current_arg = 0;
+    bool whitespace_flag = false;
     char c;
 
     // Instruction Arguments are parsed into a single string that is divided into 128 char segments for each argument
@@ -191,18 +192,15 @@ long int* parse_args(char** fpp, label_index* labels, int n_args, argument_type*
         switch (c){
             case ' ':
             case '\t':
-                break;
+                // break;
 
             case ',':
             case'(':
-                if (current_arg==(n_args-1)) {
-                    show_error("Error on line %lu, Expected 3 operands, Found more than 3\n", *line_number);
-                    free(args);
-                    return NULL;
-                }
+                if (whitespace_flag) break;
                 args[current_arg*128 + i_args] = '\0';
                 current_arg++;
                 i_args = 0;
+                whitespace_flag = true;
                 break;
 
             case ')':
@@ -211,9 +209,15 @@ long int* parse_args(char** fpp, label_index* labels, int n_args, argument_type*
                 goto exit;
 
             default:
+                whitespace_flag = false;
+                if (current_arg==(n_args)) {
+                    show_error("Error on line %lu, Expected %d operands, Found more than %d\n", *line_number + 1, n_args, n_args);
+                    free(args);
+                    return NULL;
+                }
                 if (i_args==127) {
                     args[current_arg*128 + i_args] = '\0';
-                    show_error("Error on line %lu, Illegal operand: %s\n", *line_number, args + current_arg*128);
+                    show_error("Error on line %lu, Illegal operand: %s\n", *line_number + 1, args + current_arg*128);
                     free(args);
                     return NULL;
                 }
@@ -223,7 +227,7 @@ long int* parse_args(char** fpp, label_index* labels, int n_args, argument_type*
 
     exit:
     if (current_arg<(n_args-1)) {
-        show_error("Error on line %lu, Expected 3 operands, Less operands than expected\n", *line_number);
+        show_error("Error on line %lu, Expected %d operands, Less operands than expected\n", *line_number, n_args);
         free(args);
         return NULL;
     }
@@ -318,22 +322,6 @@ long int* parse_args(char** fpp, label_index* labels, int n_args, argument_type*
 // before returning the encoded arguemnts as a long int
 // 
 // The purpose of these functions being defined like this, is to declutter the code for the second_pass function in main.c
-
-// long P_type_parser(char** args_raw, label_index* labels, uint64_t* line_number, int instruction_number, bool* fail_flag, vec* constants) {
-//     argument_type types[] = {REGISTER, IMMEDIATE};
-//     int* args = parse_args(args_raw, labels, 2, types, line_number, instruction_number);
-
-//     if (!args) {
-//         *fail_flag = true;
-//         return -1;
-//     }
-
-//     append(constants, args[1]);
-//     int result = (args[0] << 7) + ((constants->len-1) << 12);
-
-//     free(args);
-//     return result;
-// }
 
 long R_type_parser(char** args_raw, label_index* labels, uint64_t* line_number, int instruction_number, bool* fail_flag) {
     argument_type types[] = {REGISTER, REGISTER, REGISTER};
