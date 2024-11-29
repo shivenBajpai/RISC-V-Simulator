@@ -180,7 +180,7 @@ long int* parse_args(char** fpp, label_index* labels, int n_args, argument_type*
     char c;
 
     // Instruction Arguments are parsed into a single string that is divided into 128 char segments for each argument
-    char* args = malloc(n_args*128*sizeof(char)); 
+    char* args = malloc((n_args*128*sizeof(char))+1); 
     if (!args) {
         printf("Out of memory!");
         return NULL;

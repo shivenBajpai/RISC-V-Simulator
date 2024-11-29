@@ -67,6 +67,7 @@ Command frontend_update() {
                     }
                     // printf("%ld, ", regs[i]);
                 }
+                printf("\n");
             }
 
             // printf("%ld %ld\n", cli_mem_max, cli_mem_min);
@@ -78,10 +79,10 @@ Command frontend_update() {
                         case HEX: printf("0x%lx, ", *(uint64_t*) (memory->data+i)); break; 
                     }
                 }
+                printf("\n");
             }
 
             // TODO: cache flushing and stats
-            printf("\n");
             
             substep = 0; 
             if (cli_n_cases == ++case_count) return EXIT;

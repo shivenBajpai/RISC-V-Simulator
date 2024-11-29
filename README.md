@@ -45,6 +45,12 @@ If specified, the values in memory between the specified addresses will be dumpe
 Memory data will be interpreted as a series of signed dwords
 Might be funky if addresses are not dword aligned
 
+# Output format:
+
+For every case, Output will be printed on 1 or more lines, depending on the options set.
+Each line has either register/memory/cache information
+The order is registers first, then memory, then cache (note: cache dumping is not implemented yet)
+
 # A Quick Guide to error messages:
 
 All error messages due to a problem in input code/exception while testing will come in the format:
