@@ -19,6 +19,15 @@ The number of test cases, and a file with each test case, as a single line that 
 
 ### Optional
 
+--output \<code> <br>
+-o \<code>
+
+How to interpret the values in memory when dumping. By default, it interprets as signed ints.
+You can use the following values of code:
+0 - Signed int
+1 - Unsigned int
+2 - Hex
+
 --cycles \<max-cycle-count> <br>
 -c \<max-cycle-count>
 

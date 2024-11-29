@@ -109,6 +109,25 @@ int main(int argc, char** argv) {
 			}
 		}
 
+		if (strcmp(argv[i],"-o")==0 || strcmp(argv[i],"--output")==0) {
+			i++;
+			if (i==argc) {
+				printf("Missing value for option \"output format\"\n");
+				return 1;
+			}
+
+			// Convert the next item from argv[i] to an integer
+			char *endptr;
+			errno = 0; // To distinguish success/failure after call
+			cli_output_type = strtol(argv[i], &endptr, 10);
+
+			// Check for various possible errors
+			if (errno != 0 || endptr == argv[i] || *endptr != '\0' || cli_output_type < 0 || cli_output_type > 2) {
+				printf("Invalid value for option \"output format\"\n");
+				return 1;
+			}
+		}
+
 		if (strcmp(argv[i],"-m")==0 || strcmp(argv[i],"--mem")==0) {
 			i++;
 			if (i==argc) {

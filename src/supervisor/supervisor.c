@@ -60,14 +60,23 @@ Command frontend_update() {
             // Dump all things as applicable
             if (cli_regs) {
                 for (int i=0; i<32; i++) {
-                    printf("%ld, ", regs[i]);
+                    switch (cli_output_type) {
+                        case SIGNED: printf("%ld, ", regs[i]); break;
+                        case UNSIGNED: printf("%lu, ", regs[i]); break;
+                        case HEX: printf("0x%lx, ", regs[i]); break; 
+                    }
+                    // printf("%ld, ", regs[i]);
                 }
             }
 
             // printf("%ld %ld\n", cli_mem_max, cli_mem_min);
             if (cli_mem_max) {
                 for (int i=cli_mem_min; i<cli_mem_max; i+=8) {
-                    printf("%ld, ", *(int64_t*) (memory->data+i));
+                    switch (cli_output_type) {
+                        case SIGNED: printf("%ld, ", *(int64_t*) (memory->data+i)); break;
+                        case UNSIGNED: printf("%lu, ", *(uint64_t*) (memory->data+i)); break;
+                        case HEX: printf("0x%lx, ", *(uint64_t*) (memory->data+i)); break; 
+                    }
                 }
             }
 

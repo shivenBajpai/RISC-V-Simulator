@@ -227,7 +227,7 @@ long int* parse_args(char** fpp, label_index* labels, int n_args, argument_type*
 
     exit:
     if (current_arg<(n_args-1)) {
-        show_error("Error on line %lu, Expected %d operands, Less operands than expected\n", *line_number, n_args);
+        show_error("Error on line %lu, Expected %d operands, Less operands than expected\n", *line_number + 1, n_args);
         free(args);
         return NULL;
     }
@@ -260,7 +260,7 @@ long int* parse_args(char** fpp, label_index* labels, int n_args, argument_type*
                 }
 
                 if (endptr == arg || *endptr != '\0') {
-                    show_error("Argument %d on line %lu is invalid for type %s: %s\n", current_arg+1, *line_number, argument_type_names[types[current_arg]], arg);
+                    show_error("Argument %d on line %lu is invalid for type %s: %s\n", current_arg+1, *line_number + 1, argument_type_names[types[current_arg]], arg);
                     free(args);
                     return NULL;
                 }
@@ -274,7 +274,7 @@ long int* parse_args(char** fpp, label_index* labels, int n_args, argument_type*
                     converted_args[current_arg] = strtol(arg, &endptr, 10);
 
                     if (endptr == arg || *endptr != '\0') {
-                        show_error("Failed to interpret argument %d on line %lu as numeric offset: %s\n", current_arg+1, *line_number, arg);
+                        show_error("Failed to interpret argument %d on line %lu as numeric offset: %s\n", current_arg+1, *line_number + 1, arg);
                         free(args);
                         free(converted_args);
                         return NULL;
@@ -284,7 +284,7 @@ long int* parse_args(char** fpp, label_index* labels, int n_args, argument_type*
                     int position = label_to_position(labels, arg);
 
                     if (position==-1) {
-                        show_error("Unseen label on line %lu: %s\n", *line_number, arg);
+                        show_error("Unseen label on line %lu: %s\n", *line_number + 1, arg);
                         free(args);
                         free(converted_args);
                         return NULL;
@@ -299,7 +299,7 @@ long int* parse_args(char** fpp, label_index* labels, int n_args, argument_type*
                 converted_args[current_arg] = parse_alias(arg);
 
                 if (converted_args[current_arg]==-1) {
-                    show_error("Unknown register on line %lu: %s\n", *line_number, arg);
+                    show_error("Unknown register on line %lu: %s\n", *line_number + 1, arg);
                     free(args);
                     free(converted_args);
                     return NULL;
@@ -308,7 +308,7 @@ long int* parse_args(char** fpp, label_index* labels, int n_args, argument_type*
                 break;
 
             default:
-                show_error("Error on line %lu\nUnknown argument type %d for %s, did you forget to write a case?\n", *line_number, types[current_arg], args + current_arg*128);
+                show_error("Error on line %lu\nUnknown argument type %d for %s, did you forget to write a case?\n", *line_number + 1, types[current_arg], args + current_arg*128);
 				return NULL;
         }
     }
@@ -348,7 +348,7 @@ long I1_type_parser(char** args_raw, label_index* labels, uint64_t* line_number,
     }
 
     if (args[2] > 2047 || args[2] < -2048) {
-        show_error("Error on line %li: Immediate value too large. Stopping...\n", *line_number);
+        show_error("Error on line %li: Immediate value too large. Stopping...\n", *line_number + 1);
         *fail_flag = true;
         return -1;
     }
@@ -368,7 +368,7 @@ long I1B_type_parser(char** args_raw, label_index* labels, uint64_t* line_number
     }
 
     if (args[2] > 63) {
-        show_error("Error on line %li: Shift amount cannot exceed 63 bits. Stopping...\n", *line_number);
+        show_error("Error on line %li: Shift amount cannot exceed 63 bits. Stopping...\n", *line_number + 1);
         *fail_flag = true;
         return -1;
     }
@@ -388,7 +388,7 @@ long I2_type_parser(char** args_raw, label_index* labels, uint64_t* line_number,
     }
 
     if (args[1] > 2047 || args[1] < -2048) {
-        show_error("Error on line %li: Immediate value too large. Stopping...\n", *line_number);
+        show_error("Error on line %li: Immediate value too large. Stopping...\n", *line_number + 1);
         *fail_flag = true;
         return -1;
     }
@@ -408,7 +408,7 @@ long S_type_parser(char** args_raw, label_index* labels, uint64_t* line_number, 
     }
 
     if (args[1] > 2047 || args[1] < -2048) {
-        show_error("Error on line %li: Immediate value too large. Stopping...\n", *line_number);
+        show_error("Error on line %li: Immediate value too large. Stopping...\n", *line_number + 1);
         *fail_flag = true;
         return -1;
     }
@@ -429,7 +429,7 @@ long B_type_parser(char** args_raw, label_index* labels, uint64_t* line_number, 
     }
 
     if (args[2] > 4094*4 || args[2] < -4096*4) {
-        show_error("Error on line %li: Branch offset too large. Stopping...\n", *line_number);
+        show_error("Error on line %li: Branch offset too large. Stopping...\n", *line_number + 1);
         *fail_flag = true;
         return -1;
     }
@@ -451,7 +451,7 @@ long U_type_parser(char** args_raw, label_index* labels, uint64_t* line_number, 
     }
 
     if (args[1] < 0 || args[1] > 0xFFFFF) {
-        show_error("Error on line %li: Offset does not in range 0x0...0xFFFFF Stopping...\n", *line_number);
+        show_error("Error on line %li: Offset does not in range 0x0...0xFFFFF Stopping...\n", *line_number + 1);
         *fail_flag = true;
         return -1;
     }

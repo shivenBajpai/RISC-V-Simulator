@@ -321,7 +321,7 @@ int second_pass(char* clean_fp, int* hexcode, label_index* index, vec* line_mapp
 				const instruction_info* instruction = parse_instruction(name);
 
 				if (!instruction) {
-					show_error("Error on line %d: Unknown Instruction: (%s)", line_mapping->values[instruction_count], name);
+					show_error("Error on line %d: Unknown Instruction: (%s)", line_mapping->values[instruction_count] + 1, name);
 					return 1;
 				}
 
@@ -378,7 +378,7 @@ int second_pass(char* clean_fp, int* hexcode, label_index* index, vec* line_mapp
 						break; 
 						
 					default:
-						show_error("Error on line %d: Unclassified type, This should not have happened!", line_mapping->values[instruction_count]);
+						show_error("Error on line %d: Unclassified type, This should not have happened!", line_mapping->values[instruction_count] + 1);
 						return 1;
 				}
 				
@@ -395,7 +395,7 @@ int second_pass(char* clean_fp, int* hexcode, label_index* index, vec* line_mapp
 		} else {
 			// No valid instruction would be this long
 			name[7] = '\0';
-			show_error("Error on line %d: Invalid Instruction: %s", line_mapping->values[instruction_count], name);
+			show_error("Error on line %d: Invalid Instruction: %s", line_mapping->values[instruction_count] + 1, name);
 			return 1;
 		}
 
