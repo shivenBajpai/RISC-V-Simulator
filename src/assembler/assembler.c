@@ -230,6 +230,7 @@ int first_pass(FILE *in_fp, char *out_fp, label_index* index, vec* line_mapping,
 	bool whitespace_flag = false; // is the current charachter whitespace (different rules are followed to decide if it should be written to output)
 	bool instr_flag = false; // Was there an instruction on this line
 	bool keep_reading = true;
+	int prev_line;
 
 	while (keep_reading) {
 		c = fgetc(in_fp);
@@ -267,7 +268,7 @@ int first_pass(FILE *in_fp, char *out_fp, label_index* index, vec* line_mapping,
 				}
 
 				label_buffer[line_len] = '\0';
-				int prev_line = label_to_position(index, label_buffer);
+				prev_line = label_to_position(index, label_buffer);
 				if (prev_line != -1) {
 					show_error("ERROR: Pre-existing label defined on line %d repeated on %d, Stopping...\n", line_mapping->values[prev_line], linecount);
 					return -3;
@@ -377,6 +378,10 @@ int second_pass(char* clean_fp, int* hexcode, label_index* index, vec* line_mapp
 						addend = P_LI_parser(&clean_fp, index, &line_mapping->values[instruction_count], instruction_count, &fail_flag, constants);
 						break; 
 						
+					case P_TYPE:
+						addend = P_type_parser(&clean_fp, index, &line_mapping->values[instruction_count], instruction_count, &fail_flag, constants, instruction);
+						break;
+
 					default:
 						show_error("Error on line %d: Unclassified type, This should not have happened!", line_mapping->values[instruction_count] + 1);
 						return 1;

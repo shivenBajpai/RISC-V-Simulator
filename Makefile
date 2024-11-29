@@ -25,6 +25,7 @@ test: $(TARGET_PATH)
 	@cd tests && ./test.bash
 
 $(TARGET_PATH): $(OBJS)
+	@mkdir -p bin
 	@echo "Linking..."
 	@$(CC) -o $(TARGET_PATH) $(OBJS) $(CLFLAGS) 
 	@echo "Binary generated in /bin"

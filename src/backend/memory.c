@@ -89,6 +89,7 @@ uint8_t* find_or_replace_data_line(Memory* mem, uint64_t addr, bool allocate, bo
         return NULL;
     }
 
+    uint64_t earliest_time;
     if (victim == -1) {
         switch (mem->cache_config.replacement_policy) {
             case RANDOM:
@@ -97,7 +98,7 @@ uint8_t* find_or_replace_data_line(Memory* mem, uint64_t addr, bool allocate, bo
             
             case FIFO:
             case LRU:
-                uint64_t earliest_time = *(line_ptr+mem->masks.timestamp_offset);
+                earliest_time = *(line_ptr+mem->masks.timestamp_offset);
                 victim = 0;
 
                 for (int i=1; i<mem->cache_config.associativity; i++) {

@@ -2,7 +2,7 @@
 #include "stdio.h"
 
 void st_push(stacktrace* st, int line) {
-
+    return;
     int label = get_section_label(st->index, line);
 
     append(st->stack, line);
@@ -12,7 +12,7 @@ void st_push(stacktrace* st, int line) {
 }
 
 void st_pop(stacktrace* st) {
-
+    return;
     if (st->len == 0) return;
     st->len--;
     vec_remove(st->stack, st->len);
@@ -21,12 +21,14 @@ void st_pop(stacktrace* st) {
 }
 
 void st_clear(stacktrace* st) {
+    return;
     st->len = 0;
     vec_clear(st->stack);
     vec_clear(st->label_indices);
 }
 
 void st_update(stacktrace* st, int line) {
+    return;
     st->stack->values[st->len-1] = line;
 }
 

@@ -28,6 +28,11 @@ void set_hexcode_pointer(uint32_t* hexcode_pointer) {return;}
 void set_labels_pointer(label_index* index) {return;}
 void update_code(char* code_pointer, uint64_t n) {return;}
 void show_error(char* format, ...) {
+    if (tle_flag) {
+        printf("Supervisor: Cycle Limit Exceeded while running testcase %d (step %d)!\n", case_count, substep);
+        return;
+    }
+    
     va_list args;
     va_start(args, format);
     printf("Supervisor: While running testcase %d (step %d) An Error Occured:\n", case_count, substep);

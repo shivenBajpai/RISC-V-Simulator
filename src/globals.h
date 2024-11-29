@@ -4,6 +4,7 @@
 
 extern bool segfault_flag; // For Crash handler
 extern bool text_write_enabled;    // Allow writing to text segment 
+extern bool tle_flag; 
 extern char input_file[256];
 extern char active_file[256];
 

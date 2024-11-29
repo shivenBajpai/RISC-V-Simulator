@@ -113,6 +113,8 @@ void reset_backend(bool hard, CacheConfig cache_config) {
         reset_cache(memory);
     }
     memset(registers, 0, sizeof(registers));
+    registers[2] = MEMORY_SIZE - 17; // Max index - 16
+    registers[3] = DATA_BASE;
     memset(memory_data, 0, MEMORY_SIZE);
     pc = 0;
 }
@@ -202,6 +204,7 @@ int step() {
     
     // Update the line number on the stack
     st_update(stack, (pc/4)+1);
+    uint64_t new_addr;
 
     // Execute the instruction. All registers are unsigned by default. Only signed comparisons and offsets have to be type casted  
     switch (funct_op) {
@@ -436,8 +439,9 @@ int step() {
             break;
 
         case jalr:
+            new_addr = *rs1 + imm - 4;
             *rd = pc + 4;
-            pc = *rs1 + imm - 4;
+            pc = new_addr;
             st_pop(stack);
             break;
 
@@ -554,8 +558,9 @@ int run_to_end(Command (*callback)(void)) {
         // Call step here
         if ((result = step())) return result;
         if (++cycles == cli_cycles) {
+            tle_flag = true;
             show_error("Max Cycles exceeded! Execution stopped.");
-            return 1;
+            return 0;
         }
         // if ((*callback)() == STOP) return 0;
     }

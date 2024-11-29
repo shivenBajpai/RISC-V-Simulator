@@ -72,6 +72,33 @@ static const instruction_info instructions[] = {
     "li",       0b1111111,                      P_LI, 
     "la",       0b1111111,                      P_LA, 
     "nop",      0b0110011,                      I4_TYPE, // Converts to add x0 x0 x0
+
+    "mv",       1,                              P_TYPE,   
+    "not",      2,                              P_TYPE,  
+    "neg",      3,                              P_TYPE,  
+    "negw",     4,                              P_TYPE,     
+    "sext.w",   5,                              P_TYPE,     
+    "seqz",     6,                              P_TYPE,     
+    "snez",     7,                              P_TYPE,     
+    "sltz",     8,                              P_TYPE,     
+    "sgtz",     9,                              P_TYPE,     
+    "beqz",     10,                             P_TYPE,     
+    "bnez",     11,                             P_TYPE,     
+    "blez",     12,                             P_TYPE,     
+    "bgez",     13,                             P_TYPE,     
+    "bltz",     14,                             P_TYPE,     
+    "bgtz",     15,                             P_TYPE,     
+    "bgt",      16,                             P_TYPE,  
+    "ble",      17,                             P_TYPE,  
+    "bgtu",     18,                             P_TYPE,     
+    "bleu",     19,                             P_TYPE,     
+    "j",        20,                             P_TYPE,    
+    "jal",      21,                             P_TYPE,  
+    "jr",       22,                             P_TYPE,   
+    "jalr",     23,                             P_TYPE,     
+    "ret",      24,                             P_TYPE,  
+    "call",     25,                             P_TYPE,     
+    "tail",     26,                             P_TYPE,     
 }; 
 
 static const alias registers[] = {
@@ -162,7 +189,7 @@ int parse_alias(char* name) {
 
 // Convert instruction name into instruction_info* by looking it up in the list of instructions
 const instruction_info* parse_instruction(char* name) {
-    for (int i = 0; i<53; i++) {
+    for (int i = 0; i<79; i++) {
         if (strcmp(name, instructions[i].name) == 0) {
             return &instructions[i];
         }
@@ -242,11 +269,12 @@ long int* parse_args(char** fpp, label_index* labels, int n_args, argument_type*
     // Attempt to parse each argument based on expected type
     for (current_arg=0; current_arg<n_args; current_arg++) {
         char* arg = args + current_arg*128;
+        char *endptr;
+        int position;
 
         switch (types[current_arg]) {
             case IMMEDIATE:
 
-                char *endptr;
                 if (arg[0] == '0') {
                     if (arg[1] == 'x') {
                         converted_args[current_arg] = strtol(arg+2, &endptr, 16);
@@ -270,7 +298,6 @@ long int* parse_args(char** fpp, label_index* labels, int n_args, argument_type*
             case OFFSET:
 
                 if (!isalpha(arg[0])) {
-                    char *endptr;
                     converted_args[current_arg] = strtol(arg, &endptr, 10);
 
                     if (endptr == arg || *endptr != '\0') {
@@ -281,7 +308,7 @@ long int* parse_args(char** fpp, label_index* labels, int n_args, argument_type*
                     }
 
                 } else {
-                    int position = label_to_position(labels, arg);
+                    position = label_to_position(labels, arg);
 
                     if (position==-1) {
                         show_error("Unseen label on line %lu: %s\n", *line_number + 1, arg);
@@ -322,6 +349,152 @@ long int* parse_args(char** fpp, label_index* labels, int n_args, argument_type*
 // before returning the encoded arguemnts as a long int
 // 
 // The purpose of these functions being defined like this, is to declutter the code for the second_pass function in main.c
+
+long P_type_parser(char** args_raw, label_index* labels, uint64_t* line_number, int instruction_number, bool* fail_flag, vec* constants, const instruction_info* instruction) {
+    long int* args;
+    int result;
+    int rearranged_offset;
+
+    switch (instruction->constant) {
+        case 1: // "mv",       
+            args = parse_args(args_raw, labels, 2, (argument_type[]) {REGISTER, REGISTER}, line_number, instruction_number);
+
+            if (!args) {
+                *fail_flag = true;
+                return -1;
+            }
+
+            result = 0b0010011+(0x0<<12) + (args[0] << 7) + (args[1] << 15);
+            free(args);
+            return result-instruction->constant;
+
+        case 2: // "not",      
+
+            break;
+
+        case 3: // "neg",      
+
+            break;
+
+        case 4: // "negw",     
+
+            break;
+
+        case 5: // "sext.w",   
+
+            break;
+
+        case 6: // "seqz",     
+
+            break;
+
+        case 7: // "snez",     
+
+            break;
+
+        case 8: // "sltz",     
+
+            break;
+
+        case 9: // "sgtz",     
+
+            break;
+
+        case 10: // "beqz",     
+
+            break;
+
+        case 11: // "bnez",     
+
+            break;
+
+        case 12: // "blez",     
+
+            break;
+
+        case 13: // "bgez",     
+
+            break;
+
+        case 14: // "bltz",     
+
+            break;
+
+        case 15: // "bgtz",     
+
+            break;
+
+        case 16: // "bgt",      
+
+            break;
+
+        case 17: // "ble",      
+
+            break;
+
+        case 18: // "bgtu",     
+
+            break;
+
+        case 19: // "bleu",     
+
+            break;
+
+        case 20: // "j",        
+            args = parse_args(args_raw, labels, 1, (argument_type[]) {OFFSET}, line_number, instruction_number);
+
+            if (!args) {
+                *fail_flag = true;
+                return -1;
+            }
+
+
+            rearranged_offset = (args[0] & 0x000FF000) + ((args[0] & 0x000007FE) << 20) + ((args[0] & 0x00000800) << 9) + ((args[0] & 0x00100000) << 11);
+            result = (0 << 7) + rearranged_offset + 0b1101111;
+
+            free(args);
+            return result-instruction->constant;
+
+        case 21: // "jal",      
+
+            break;
+
+        case 22: // "jr",       
+
+            break;
+
+        case 23: // "jalr",     
+
+            break;
+
+        case 24: // "ret",      
+            rearranged_offset = (0 & 0x00000FFF) << 20;
+            result = (0 << 7) + (1 << 15) + rearranged_offset + 0b1100111;
+            
+            return result-instruction->constant;
+
+        case 25: // "call",     
+            args = parse_args(args_raw, labels, 1, (argument_type[]) {OFFSET}, line_number, instruction_number);
+
+            if (!args) {
+                *fail_flag = true;
+                return -1;
+            }
+
+
+            rearranged_offset = (args[0] & 0x000FF000) + ((args[0] & 0x000007FE) << 20) + ((args[0] & 0x00000800) << 9) + ((args[0] & 0x00100000) << 11);
+            result = (1 << 7) + rearranged_offset + 0b1101111;
+
+            free(args);
+            return result-instruction->constant;
+
+        case 26: // "tail",     
+
+            break;
+    }
+
+    show_error("Unsupported pseudo instruction %s on line %li", instruction->name, *line_number);
+}
 
 long R_type_parser(char** args_raw, label_index* labels, uint64_t* line_number, int instruction_number, bool* fail_flag) {
     argument_type types[] = {REGISTER, REGISTER, REGISTER};

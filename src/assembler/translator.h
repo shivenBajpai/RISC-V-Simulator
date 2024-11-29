@@ -24,7 +24,8 @@ typedef enum instruction_type {
     I3_TYPE,
     I4_TYPE,
     P_LI,
-    P_LA 
+    P_LA,
+    P_TYPE 
 } instruction_type;
 
 typedef enum argument_type {
@@ -45,6 +46,7 @@ long J_type_parser(char** args_raw, label_index* labels, uint64_t* line_number, 
 long I3_type_parser(char** args_raw, label_index* labels, uint64_t* line_number, int instruction_number, bool* fail_flag);
 long P_LI_parser(char** args_raw, label_index* labels, uint64_t* line_number, int instruction_number, bool* fail_flag, vec* constants);
 long P_LA_parser(char** args_raw, label_index* labels, uint64_t* line_number, int instruction_number, bool* fail_flag, vec* constants);
+long P_type_parser(char** args_raw, label_index* labels, uint64_t* line_number, int instruction_number, bool* fail_flag, vec* constants, const instruction_info* instruction);
 
 int parse_alias(char* name);
 const instruction_info* parse_instruction(char* name);
