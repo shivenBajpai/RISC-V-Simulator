@@ -1,4 +1,4 @@
-# RISC-V Simulator-Testor for CS2323 Computer Architecture
+# RISC-V Simulator cum Tester for CS2323 Computer Architecture
 
 Build the project by running `make`
 The binary is generated in `\bin`
@@ -36,3 +36,21 @@ If specified, the values in memory between the specified addresses will be dumpe
 Memory data will be interpreted as a series of signed dwords
 Might be funky if addresses are not dword aligned
 
+# A Quick Guide to error messages:
+
+All error messages due to a problem in input code/exception while testing will come in the format:
+
+```
+Supervisor: While running testcase <t> (step <s>) An Error Occured:
+<some_error_message>
+```
+
+If the error does not have the Header that indicates that the problem may be with the code being tested or possibly a bug in the program itself
+
+The numbers \<t> \<s> provide some information as to when the error occured
+
+| t | s | problem |
+|---|---|---------|
+| 0 | 0 | Problem occurred while trying to assemble input code |
+| t | 1 | Problem occurred while trying to read the testcase for testcase t |
+| t | 2 | Problem occurred while trying to run code for testcase t |

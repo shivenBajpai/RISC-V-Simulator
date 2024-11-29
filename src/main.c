@@ -174,8 +174,10 @@ int main(int argc, char** argv) {
 	set_breakpoints_pointer(get_breakpoints_pointer());
 
 	memory_template = malloc(sizeof(uint8_t)* MEMORY_SIZE);
-
+	vec* constants = new_managed_array();
 	FILE* fp = NULL;
+
+	set_constants_pointer(constants);
 
 	// Main loop
 	// Polls for updates from the frontend, and processes them
@@ -201,11 +203,12 @@ int main(int argc, char** argv) {
 				}
 				
 				label_index* new_index_of_labels = new_label_index();
+				vec* new_constants = new_managed_array();
 
 				uint8_t* new_memory_template = malloc(sizeof(uint8_t)* MEMORY_SIZE);
 				memset(new_memory_template, 0, sizeof(uint8_t)*MEMORY_SIZE);
 
-				hexcode = assembler_main(fp, new_cleaned_code, new_index_of_labels, new_memory_template);
+				hexcode = assembler_main(fp, new_cleaned_code, new_index_of_labels, new_memory_template, new_constants);
 				fclose(fp);
 
 				// If assembler failed, free temporary memory and abort
@@ -213,6 +216,7 @@ int main(int argc, char** argv) {
 					free(new_cleaned_code);
 					free(new_index_of_labels);
 					free(new_memory_template);
+					free_managed_array(new_constants);
 					break;
 				}
 				
@@ -230,6 +234,9 @@ int main(int argc, char** argv) {
 				if (memory_template) free(memory_template);
 				memory_template = new_memory_template;
 
+				if (constants) free_managed_array(constants);
+				constants = new_constants;
+
 				if (get_section_label(index_of_labels, 0) == -1) prepend_label(index_of_labels, "main", 0); // Adding main to stack if there is no label at the start
 				index_dedup(index_of_labels);
 				if (stack) st_free(stack);
@@ -245,6 +252,7 @@ int main(int argc, char** argv) {
 
 				// Give frontend new pointers to data in backend
 				update_code(cleaned_code, hexcode[0]);
+				set_constants_pointer(constants);
 				set_stack_pointer(stack);
 				set_stacktrace_pointer(stack);
 				set_breakpoints_pointer(get_breakpoints_pointer());

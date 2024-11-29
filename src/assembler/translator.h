@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include "index.h"
+#include "vec.h"
 
 typedef struct instruction_info {
     const char* name;
@@ -22,7 +23,8 @@ typedef enum instruction_type {
     J_TYPE,
     I3_TYPE,
     I4_TYPE,
-    P_TYPE
+    P_LI,
+    P_LA 
 } instruction_type;
 
 typedef enum argument_type {
@@ -41,6 +43,8 @@ long B_type_parser(char** args_raw, label_index* labels, uint64_t* line_number, 
 long U_type_parser(char** args_raw, label_index* labels, uint64_t* line_number, int instruction_number, bool* fail_flag);
 long J_type_parser(char** args_raw, label_index* labels, uint64_t* line_number, int instruction_number, bool* fail_flag);
 long I3_type_parser(char** args_raw, label_index* labels, uint64_t* line_number, int instruction_number, bool* fail_flag);
+long P_LI_parser(char** args_raw, label_index* labels, uint64_t* line_number, int instruction_number, bool* fail_flag, vec* constants);
+long P_LA_parser(char** args_raw, label_index* labels, uint64_t* line_number, int instruction_number, bool* fail_flag, vec* constants);
 
 int parse_alias(char* name);
 const instruction_info* parse_instruction(char* name);

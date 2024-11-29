@@ -14,6 +14,7 @@ int run_to_end();
 
 void reset_backend(bool hard, CacheConfig cache_config);
 void set_stacktrace_pointer(stacktrace* stacktrace);
+void set_constants_pointer(vec* new_constants); 
 void destroy_backend();
 uint64_t* get_register_pointer();
 uint64_t* get_pc_pointer();

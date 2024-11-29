@@ -1,7 +1,7 @@
 SHELL=/bin/bash
 CC = gcc
 CCFLAGS = -g -Wno-deprecated-declarations
-CLFLAGS = -g -lncurses
+CLFLAGS = -g
 
 SRCDIR=src
 OBJDIR=build
@@ -17,7 +17,6 @@ TARGET_PATH=./$(OUTDIR)/$(TARGET)
 
 .PHONY: build
 build: $(TARGET_PATH)
-	@cp bin/$(TARGET) ./$(TARGET)
 
 debug: $(TARGET_PATH)
 	@cd bin && ./$(TARGET) -d
@@ -43,4 +42,3 @@ clean:
 	@echo "Removing Build and Test files..."
 	-@rm $(OBJS)
 	-@rm ./$(OUTDIR)/$(TARGET)
-	-@rm ./$(TARGET)

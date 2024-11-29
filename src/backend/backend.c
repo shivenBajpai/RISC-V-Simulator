@@ -25,6 +25,7 @@ enum Opcode {
     LUI         = 0b0110111,
     AUIPC       = 0b0010111,
     EBREAK      = 0b1110011,
+    PSEUDO      = 0b1111111,
     NOP         = 0, // Made up marker, Used to identify end of code.
 };
 
@@ -79,6 +80,7 @@ enum Instruction_Constants{
     divu = 0b0110011+(0x5<<12)+(0x01<<25),
     rem = 0b0110011+(0x6<<12)+(0x01<<25),
     remu = 0b0110011+(0x7<<12)+(0x01<<25),
+    li = 0b1111111,
 }; 
 
 static uint64_t registers[32] = {0};
@@ -87,6 +89,7 @@ static vec *breakpoints = NULL;
 static Memory* memory = NULL;
 static stacktrace* stack = NULL;
 static uint8_t* memory_data = NULL;
+static vec* constants = NULL;
 extern bool text_write_enabled;
 
 // Utility functions used to link frontend to backend
@@ -96,6 +99,7 @@ vec* get_breakpoints_pointer() {return breakpoints;}
 Memory* get_memory_pointer() {return memory;}
 CacheStats* get_cache_stats_pointer() {return &(memory->cache_stats);}
 void set_stacktrace_pointer(stacktrace* stacktrace) {stack = stacktrace;}
+void set_constants_pointer(vec* new_constants) {constants = new_constants;}
 
 // Resets memeory and registers. The hard parameters is true if this is a new file load and false if it is just a reset
 void reset_backend(bool hard, CacheConfig cache_config) {
@@ -184,6 +188,13 @@ int step() {
 
         case NOP:
             return 1;
+
+        case PSEUDO:
+            funct_op = instruction & 0x0000007F;
+            imm  = (instruction & 0xFFFFF000) >> 12;
+            rd = registers + ((0x00000F80 & instruction) >> 7);
+            set_reg_write(rd - registers);
+            break;
 
         default:
             funct_op = instruction & 0x0000007F;
@@ -476,6 +487,10 @@ int step() {
         case remu:
             if (*rs2 != 0) *rd = (int64_t) *rs1 % (int64_t) *rs2;
             else *rd = 0;
+            break;
+
+        case li:
+            *rd = constants->values[imm];
             break;
     }
 

@@ -69,7 +69,8 @@ static const instruction_info instructions[] = {
     "rem",      0b0110011+(0x6<<12)+(0x01<<25), R_TYPE,
     "remu",     0b0110011+(0x7<<12)+(0x01<<25), R_TYPE,
 
-    // "li",       0b1111111,                      P_TYPE, 
+    "li",       0b1111111,                      P_LI, 
+    "la",       0b1111111,                      P_LA, 
     "nop",      0b0110011,                      I4_TYPE, // Converts to add x0 x0 x0
 }; 
 
@@ -161,7 +162,7 @@ int parse_alias(char* name) {
 
 // Convert instruction name into instruction_info* by looking it up in the list of instructions
 const instruction_info* parse_instruction(char* name) {
-    for (int i = 0; i<50; i++) {
+    for (int i = 0; i<53; i++) {
         if (strcmp(name, instructions[i].name) == 0) {
             return &instructions[i];
         }
@@ -172,7 +173,7 @@ const instruction_info* parse_instruction(char* name) {
 
 // Generalized Function that parses instruction arguments from the file pointer directly. 
 // What type of arguments to expect is specified in the function's arguments itself
-int* parse_args(char** fpp, label_index* labels, int n_args, argument_type* types, uint64_t* line_number, int instruction_number) {
+long int* parse_args(char** fpp, label_index* labels, int n_args, argument_type* types, uint64_t* line_number, int instruction_number) {
     int i_args = 0;
     int current_arg = 0;
     char c;
@@ -227,7 +228,7 @@ int* parse_args(char** fpp, label_index* labels, int n_args, argument_type* type
         return NULL;
     }
     args[current_arg*128 + i_args] = '\0';
-    int* converted_args = malloc(sizeof(unsigned long)*n_args);
+    long int* converted_args = malloc(sizeof(unsigned long)*n_args);
     if (!converted_args) {
         printf("Out of memory!");
         free(args);
@@ -336,7 +337,7 @@ int* parse_args(char** fpp, label_index* labels, int n_args, argument_type* type
 
 long R_type_parser(char** args_raw, label_index* labels, uint64_t* line_number, int instruction_number, bool* fail_flag) {
     argument_type types[] = {REGISTER, REGISTER, REGISTER};
-    int* args = parse_args(args_raw, labels, 3, types, line_number, instruction_number);
+    long int* args = parse_args(args_raw, labels, 3, types, line_number, instruction_number);
 
     if (!args) {
         *fail_flag = true;
@@ -351,7 +352,7 @@ long R_type_parser(char** args_raw, label_index* labels, uint64_t* line_number, 
 
 long I1_type_parser(char** args_raw, label_index* labels, uint64_t* line_number, int instruction_number, bool* fail_flag) {
     argument_type types[] = {REGISTER, REGISTER, IMMEDIATE};
-    int* args = parse_args(args_raw, labels, 3, types, line_number, instruction_number);
+    long int* args = parse_args(args_raw, labels, 3, types, line_number, instruction_number);
 
     if (!args) {
         *fail_flag = true;
@@ -371,7 +372,7 @@ long I1_type_parser(char** args_raw, label_index* labels, uint64_t* line_number,
 
 long I1B_type_parser(char** args_raw, label_index* labels, uint64_t* line_number, int instruction_number, bool* fail_flag) {
     argument_type types[] = {REGISTER, REGISTER, IMMEDIATE};
-    int* args = parse_args(args_raw, labels, 3, types, line_number, instruction_number);
+    long int* args = parse_args(args_raw, labels, 3, types, line_number, instruction_number);
 
     if (!args) {
         *fail_flag = true;
@@ -391,7 +392,7 @@ long I1B_type_parser(char** args_raw, label_index* labels, uint64_t* line_number
 
 long I2_type_parser(char** args_raw, label_index* labels, uint64_t* line_number, int instruction_number, bool* fail_flag) {
     argument_type types[] = {REGISTER, IMMEDIATE, REGISTER};
-    int* args = parse_args(args_raw, labels, 3, types, line_number, instruction_number);
+    long int* args = parse_args(args_raw, labels, 3, types, line_number, instruction_number);
 
     if (!args) {
         *fail_flag = true;
@@ -411,7 +412,7 @@ long I2_type_parser(char** args_raw, label_index* labels, uint64_t* line_number,
 
 long S_type_parser(char** args_raw, label_index* labels, uint64_t* line_number, int instruction_number, bool* fail_flag) {
     argument_type types[] = {REGISTER, IMMEDIATE, REGISTER};
-    int* args = parse_args(args_raw, labels, 3, types, line_number, instruction_number);
+    long int* args = parse_args(args_raw, labels, 3, types, line_number, instruction_number);
 
     if (!args) {
         *fail_flag = true;
@@ -432,7 +433,7 @@ long S_type_parser(char** args_raw, label_index* labels, uint64_t* line_number, 
 
 long B_type_parser(char** args_raw, label_index* labels, uint64_t* line_number, int instruction_number, bool* fail_flag) {
     argument_type types[] = {REGISTER, REGISTER, OFFSET};
-    int* args = parse_args(args_raw, labels, 3, types, line_number, instruction_number);
+    long int* args = parse_args(args_raw, labels, 3, types, line_number, instruction_number);
 
     if (!args) {
         *fail_flag = true;
@@ -454,7 +455,7 @@ long B_type_parser(char** args_raw, label_index* labels, uint64_t* line_number, 
 
 long U_type_parser(char** args_raw, label_index* labels, uint64_t* line_number, int instruction_number, bool* fail_flag) {
     argument_type types[] = {REGISTER, IMMEDIATE};
-    int* args = parse_args(args_raw, labels, 2, types, line_number, instruction_number);
+    long int* args = parse_args(args_raw, labels, 2, types, line_number, instruction_number);
 
     if (!args) {
         *fail_flag = true;
@@ -475,7 +476,7 @@ long U_type_parser(char** args_raw, label_index* labels, uint64_t* line_number, 
 
 long J_type_parser(char** args_raw, label_index* labels, uint64_t* line_number, int instruction_number, bool* fail_flag) {
     argument_type types[] = {REGISTER, OFFSET};
-    int* args = parse_args(args_raw, labels, 2, types, line_number, instruction_number);
+    long int* args = parse_args(args_raw, labels, 2, types, line_number, instruction_number);
 
     if (!args) {
         *fail_flag = true;
@@ -491,7 +492,7 @@ long J_type_parser(char** args_raw, label_index* labels, uint64_t* line_number, 
 
 long I3_type_parser(char** args_raw, label_index* labels, uint64_t* line_number, int instruction_number, bool* fail_flag) {
     argument_type types[] = {REGISTER, REGISTER, IMMEDIATE};
-    int* args = parse_args(args_raw, labels, 3, types, line_number, instruction_number);
+    long int* args = parse_args(args_raw, labels, 3, types, line_number, instruction_number);
 
     if (!args) {
         *fail_flag = true;
@@ -500,6 +501,38 @@ long I3_type_parser(char** args_raw, label_index* labels, uint64_t* line_number,
 
     int rearranged_offset = (args[2] & 0x00000FFF) << 20;
     int result = (args[0] << 7) + (args[1] << 15) + rearranged_offset;
+
+    free(args);
+    return result;
+}
+
+long P_LI_parser(char** args_raw, label_index* labels, uint64_t* line_number, int instruction_number, bool* fail_flag, vec* constants) {
+    argument_type types[] = {REGISTER, IMMEDIATE};
+    long int* args = parse_args(args_raw, labels, 2, types, line_number, instruction_number);
+
+    if (!args) {
+        *fail_flag = true;
+        return -1;
+    }
+
+    append(constants, args[1]);
+    int result = (args[0] << 7) + ((constants->len-1) << 12);
+
+    free(args);
+    return result;
+}
+
+long P_LA_parser(char** args_raw, label_index* labels, uint64_t* line_number, int instruction_number, bool* fail_flag, vec* constants) {
+    argument_type types[] = {REGISTER, OFFSET};
+    long int* args = parse_args(args_raw, labels, 2, types, line_number, instruction_number);
+
+    if (!args) {
+        *fail_flag = true;
+        return -1;
+    }
+
+    append(constants, args[1]+instruction_number*4);
+    int result = (args[0] << 7) + ((constants->len-1) << 12);
 
     free(args);
     return result;

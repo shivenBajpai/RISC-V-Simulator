@@ -303,7 +303,7 @@ int first_pass(FILE *in_fp, char *out_fp, label_index* index, vec* line_mapping,
 
 
 // Actually Encode all the instructions and write it to the int array.
-int second_pass(char* clean_fp, int* hexcode, label_index* index, vec* line_mapping, bool debug) {
+int second_pass(char* clean_fp, int* hexcode, label_index* index, vec* line_mapping, bool debug, vec* constants) {
 
 	char name[8]; // Sufficient for any valid instruction/pseudo instruction in Base class
 	int instruction_count = 0;
@@ -369,9 +369,13 @@ int second_pass(char* clean_fp, int* hexcode, label_index* index, vec* line_mapp
 					case I4_TYPE:
 						break;
 
-					// case P_TYPE:
-					// 	addend = P_type_parser(&clean_fp, index, &line_mapping->values[instruction_count], instruction_count, &fail_flag, constants);
-					// 	break; 
+					case P_LA:
+						addend = P_LA_parser(&clean_fp, index, &line_mapping->values[instruction_count], instruction_count, &fail_flag, constants);
+						break; 
+
+					case P_LI:
+						addend = P_LI_parser(&clean_fp, index, &line_mapping->values[instruction_count], instruction_count, &fail_flag, constants);
+						break; 
 						
 					default:
 						show_error("Error on line %d: Unclassified type, This should not have happened!", line_mapping->values[instruction_count]);
@@ -400,7 +404,7 @@ int second_pass(char* clean_fp, int* hexcode, label_index* index, vec* line_mapp
 	return 0;
 }
 
-int* assembler_main(FILE* in_fp, char* cleaned, label_index* index, uint8_t* memory) {
+int* assembler_main(FILE* in_fp, char* cleaned, label_index* index, uint8_t* memory, vec* constants) {
 
 	// Initializing and Parsing command line switches
 	bool debug = false;
@@ -424,7 +428,7 @@ int* assembler_main(FILE* in_fp, char* cleaned, label_index* index, uint8_t* mem
 	hexcode[0] = line_mapping->len;
 
 	// Perform the second pass
-	if ((result = second_pass(cleaned, &hexcode[1], index, line_mapping, debug)) != 0) {
+	if ((result = second_pass(cleaned, &hexcode[1], index, line_mapping, debug, constants)) != 0) {
 		return NULL;
 	}
 
